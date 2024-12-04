@@ -78,7 +78,7 @@ async processCV(file, jobId, organizationId) {
     }
 
     // Upload file to S3
-    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`);
+    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,'cvs');
     
     // Extract text from file
     const text = await this.extractTextFromFile(file);
@@ -92,7 +92,8 @@ async processCV(file, jobId, organizationId) {
       organization: organizationId,
       fileUrl: fileUrl,
       originalFileName: file.originalname,
-      fileType: file.mimetype
+      fileType: file.mimetype,
+      status: 'pending'
     });
 
     return { success: true, data: cv };
@@ -194,6 +195,53 @@ async getAllCVs(organizationId, query = {}) {
     };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+},
+async  processPublicCV(file, jobId) {
+  try {
+    // Validate job exists and is active
+    const job = await Job.findOne({
+      publicId: jobId,
+      status: 'active'
+    });
+
+    if (!job) {
+      return { success: false, error: 'Job not found or not active' };
+    }
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return { 
+        success: false, 
+        error: 'Invalid file type. Only PDF and DOC/DOCX files are supported.',
+        fileName: file.originalname 
+      };
+    }
+
+    // Upload file to S3
+    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`, 'cvs');
+
+    // Extract text from file
+    const text = await this.extractTextFromFile(file);
+    
+    // Process the extracted text
+    const cvData = await this.extractCVInfo(text);
+
+    // Create CV record
+    const cv = await CV.create({
+      candidate: cvData,
+      job: job._id,
+      organization: job.organization,
+      fileUrl: fileUrl,
+      originalFileName: file.originalname,
+      fileType: file.mimetype,
+      status: 'pending'
+    });
+
+    return { success: true, data: cv };
+  } catch (error) {
+    return { success: false, error: error.message, fileName: file.originalname };
   }
 }
 };

@@ -48,7 +48,12 @@ const authService = {
           organization: {
             id: user.organization._id,
             name: user.organization.name,
-            plan: user.organization.plan || 'free'
+            plan: user.organization.plan || 'free',
+            description: user.organization.description || '',
+            website: user.organization.website || '',
+            linkedinUrl: user.organization.linkedinUrl || '',
+            logoUrl: user.organization.logoUrl || '',
+            needsSetup: !user.organization.description && !user.organization.logoUrl
           }
         }
       };

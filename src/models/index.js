@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 
 const organizationSchema = new mongoose.Schema({
   name: { type: String, required: true },
+  description: { type: String },
+  website: { type: String },
+  linkedinUrl: { type: String },
+  logoUrl: { type: String },
   plan: { type: String, enum: ['free', 'pro'], default: 'free' },
   createdAt: { type: Date, default: Date.now }
 });

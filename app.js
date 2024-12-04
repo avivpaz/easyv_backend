@@ -6,6 +6,8 @@ const cvRoutes = require('./src/routes/cvRoutes');
 const jobRoutes = require('./src/routes/jobRoutes');  // Add this line
 const authRoutes = require('./src/routes/authRoutes');
 const connectDB = require('./src/config/database');
+const organizationRoutes = require('./src/routes/organizationRoutes');
+const publicRoutes = require('./src/routes/publicRoutes');
 
 const app = express();
 
@@ -29,6 +31,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/cv', cvRoutes);
 app.use('/jobs', jobRoutes);  // Add this line
 app.use('/auth', authRoutes);
+app.use('/organizations', organizationRoutes);
+app.use('/public', publicRoutes);
 
 // Error handling
 app.use(errorHandler);

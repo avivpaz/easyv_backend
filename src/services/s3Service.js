@@ -9,9 +9,9 @@ const s3Client = new S3Client({
   }
 });
 
-const deleteFromS3 = async (fileName) => {
+const deleteFromS3 = async (fileName,bucket= process.env.AWS_BUCKET_NAME) => {
     const params = {
-      Bucket: process.env.AWS_BUCKET_NAME,
+      Bucket: bucket,
       Key: `cvs/${fileName}`
     };
   
@@ -22,20 +22,29 @@ const deleteFromS3 = async (fileName) => {
       throw new Error(`Failed to delete file: ${error.message}`);
     }
   };
-const uploadToS3 = async (file, fileName) => {
-  const params = {
-    Bucket: process.env.AWS_BUCKET_NAME,
-    Key: `cvs/${fileName}`,
-    Body: file
+  const uploadToS3 = async (
+    file, 
+    fileName, 
+    folder = '', // Make folder optional with empty default
+    bucket = process.env.AWS_BUCKET_NAME
+  ) => {
+    const params = {
+      Bucket: bucket,
+      Key: folder ? `${folder}/${fileName}` : fileName, // Only add folder if it exists
+      Body: file
+    };
+  
+    try {
+      const command = new PutObjectCommand(params);
+      await s3Client.send(command);
+      
+      // Return CloudFront URL instead of S3 URL
+      const CLOUDFRONT_DOMAIN = process.env.CLOUDFRONT_DOMAIN;
+      const key = params.Key;
+      return `https://${CLOUDFRONT_DOMAIN}/${key}`;
+    } catch (error) {
+      throw new Error(`Failed to upload file: ${error.message}`);
+    }
   };
-
-  try {
-    const command = new PutObjectCommand(params);
-    await s3Client.send(command);
-    return `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/cvs/${fileName}`;
-  } catch (error) {
-    throw new Error(`Failed to upload file: ${error.message}`);
-  }
-};
 
 module.exports = { uploadToS3 ,deleteFromS3};

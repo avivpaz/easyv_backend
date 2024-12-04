@@ -28,7 +28,16 @@ async function createJob(req, res) {
 
 async function getOrganizationJobs(req, res) {
     try {
-      const result = await jobService.getOrganizationJobs(req.user.organizationId, req.query);
+    const organizationId = req.user.organizationId;
+
+    if (!organizationId) {
+        return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    if (req.user.organizationId && organizationId !== req.user.organizationId) {
+        return res.status(403).json({ error: 'Unauthorized access to organization data' });
+    }
+      const result = await jobService.getOrganizationJobs(organizationId, req.query);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error });

@@ -49,39 +49,104 @@ const jobService = {
 
   async getOrganizationJobs(organizationId, query = {}) {
     try {
+      const { page = 1, limit = 10, status } = query;
+      const skip = (page - 1) * limit;
+   
+      // Build filter
       const filter = { 
         organization: organizationId,
         status: { $ne: 'deleted' }
       };
       
-      if (query.status) {
-        filter.status = query.status;
+      if (status) {
+        filter.status = status;
       }
-
+   
+      // Get jobs with pagination
       const jobs = await Job.find(filter)
         .sort({ createdAt: -1 })
-        .select('-__v');
-
+        .select('-__v')
+        .skip(skip)
+        .limit(Number(limit));
+   
+      // Get total count for pagination
+      const total = await Job.countDocuments(filter);
+   
       return {
         success: true,
-        data: jobs
+        data: {
+          jobs,
+          pagination: {
+            total,
+            pages: Math.ceil(total / limit),
+            page: Number(page),
+            limit: Number(limit)
+          }
+        }
       };
     } catch (error) {
       return { success: false, error: error.message };
     }
-  },
+   },
 
-  async getJob(jobId, organizationId) {
+  async  getPublicOrganizationJobs(organizationId, query = {}) {
     try {
-      const job = await Job.findOne({
-        _id: jobId,
-        status: { $ne: 'deleted' }
-      }).select('-__v');
+      const { page = 1, limit = 10, search } = query;
+      const skip = (page - 1) * limit;
+   
+      // Build query
+      const queryConditions = {
+        organization: organizationId,
+        status: 'active'
+      };
+   
+      // Add search if provided
+      if (search) {
+        queryConditions.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
+      }
+   
+      // Get jobs with pagination
+      const jobs = await Job.find(queryConditions)
+        .select('title description location workType employmentType requiredSkills createdAt _id')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit));
+   
+      // Get total count for pagination
+      const total = await Job.countDocuments(queryConditions);
+   
+      return {
+        success: true,
+        data: {
+          jobs,
+          pagination: {
+            total,
+            pages: Math.ceil(total / limit),
+            page: Number(page),
+            limit: Number(limit)
+          }
+        }
+      };
+   
+    } catch (error) {
+      console.error('Get public organization jobs error:', error);
+      return { success: false, error: 'Failed to fetch jobs' };
+    }
+   },   
+  async getJob(jobId) {
+    try {
+        const job = await Job.findOne({
+            _id: jobId,
+            status: { $ne: 'deleted' }
+          }).select('-__v');
 
       if (!job) {
         return { 
           success: false, 
-          error: 'Job not found or access denied' 
+          error: 'Job not found' 
         };
       }
 
@@ -93,7 +158,28 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
-
+  async  getPublicJob(jobId) {
+    try {
+      const job = await Job.findOne({ 
+        _id: jobId,
+        status: 'active'
+      })
+      .select('title description location workType employmentType requiredSkills niceToHaveSkills createdAt -_id');
+   
+      if (!job) {
+        return { success: false, error: 'Job not found' };
+      }
+   
+      return {
+        success: true,
+        data: job
+      };
+   
+    } catch (error) {
+      console.error('Get public job error:', error);
+      return { success: false, error: 'Failed to fetch job' };
+    }
+   },
   async getJobCVs(jobId, organizationId) {
     try {
       const job = await Job.findOne({
