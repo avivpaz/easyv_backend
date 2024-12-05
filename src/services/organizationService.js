@@ -48,6 +48,9 @@ const organizationService = {
       }
 
       // Update other fields
+      if (organizationData.name) {
+        organization.name = organizationData.name;
+      }
       if (organizationData.description) {
         organization.description = organizationData.description;
       }

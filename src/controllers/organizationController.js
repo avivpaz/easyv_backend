@@ -16,6 +16,7 @@ async function updateOrganization(req, res) {
     }
 
     const organizationData = {
+      name:req.body.name,
       description: req.body.description,
       website: req.body.website,
       linkedinUrl: req.body.linkedinUrl,
