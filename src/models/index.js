@@ -7,7 +7,8 @@ const organizationSchema = new mongoose.Schema({
   website: { type: String },
   linkedinUrl: { type: String },
   logoUrl: { type: String },
-  plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+  brandColor: { type: String },
+  plan: { type: String, enum: ['free', 'pro','enterprise'], default: 'free' },
   createdAt: { type: Date, default: Date.now }
 });
 

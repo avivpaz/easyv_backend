@@ -60,7 +60,9 @@ const organizationService = {
       if (organizationData.linkedinUrl !== undefined) {
         organization.linkedinUrl = organizationData.linkedinUrl;
       }
-
+      if (organizationData.brandColor !== undefined) {
+        organization.brandColor = organizationData.brandColor;
+      }
       await organization.save();
 
       return {
@@ -78,7 +80,7 @@ const organizationService = {
   async getPublicOrganizationDetails(organizationId) {
     try {
       const organization = await Organization.findById(organizationId)
-        .select('name description website linkedinUrl logoUrl -_id');
+        .select('name description website linkedinUrl logoUrl brandColor -_id');
    
       if (!organization) {
         return { success: false, error: 'Organization not found' };

@@ -20,6 +20,7 @@ async function updateOrganization(req, res) {
       description: req.body.description,
       website: req.body.website,
       linkedinUrl: req.body.linkedinUrl,
+      brandColor: req.body.brandColor,
       logo: req.file // Multer will add the file here if uploaded
     };
 
