@@ -57,14 +57,7 @@ async function getOrganizationJobs(req, res) {
         return res.status(404).json({ error: result.error });
       }
   
-      const accessToken = jwt.sign(
-        { 
-          jobId: id,
-          type: 'job-access',
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24h expiry
-        },
-        process.env.JWT_SECRET
-      );
+   
       res.json(result.data);
 
     } catch (error) {

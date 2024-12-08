@@ -12,12 +12,15 @@ const organizationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// In models/index.js, update userSchema
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  password: { type: String }, // Remove required: true since Google users won't have a password
   fullName: { type: String, required: true },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  googleId: { type: String }, // Add this field
+  authProvider: { type: String, enum: ['local', 'google'], default: 'local' }, // Add this field
   createdAt: { type: Date, default: Date.now }
 });
 

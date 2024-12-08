@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { login,createUser } = require('../controllers/authController');
-const { searchFacebookJobs,searchAndCreateJob } = require('../controllers/googleController');
+const { login,createUser ,googleAuth} = require('../controllers/authController');
 
 router.post('/login', login);
 router.post('/register', createUser);
-router.get('/', searchFacebookJobs);
-
+router.post('/google', googleAuth);
 module.exports = router;
