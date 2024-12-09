@@ -8,9 +8,20 @@ const organizationSchema = new mongoose.Schema({
   linkedinUrl: { type: String },
   logoUrl: { type: String },
   brandColor: { type: String },
-  plan: { type: String, enum: ['free', 'pro','enterprise'], default: 'free' },
+  plan: { type: String, enum: ['free', 'pro', 'enterprise'], default: 'free' },
+  subscription: {
+    customerId: String,      // Paddle customer ID
+    subscriptionId: String,  // Paddle subscription ID
+    status: {
+      type: String,
+      enum: ['active', 'cancelled', 'past_due', 'paused'],
+      default: 'active'
+    },
+    updatedAt: { type: Date, default: Date.now }
+  },
   createdAt: { type: Date, default: Date.now }
 });
+
 
 // In models/index.js, update userSchema
 const userSchema = new mongoose.Schema({

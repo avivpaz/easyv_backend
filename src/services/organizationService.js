@@ -80,7 +80,7 @@ const organizationService = {
   async getPublicOrganizationDetails(organizationId) {
     try {
       const organization = await Organization.findById(organizationId)
-        .select('name description website linkedinUrl logoUrl brandColorm -_id');
+        .select('name description website linkedinUrl logoUrl brandColor -_id');
    
       if (!organization) {
         return { success: false, error: 'Organization not found' };

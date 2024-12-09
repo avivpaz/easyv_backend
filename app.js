@@ -8,6 +8,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const connectDB = require('./src/config/database');
 const organizationRoutes = require('./src/routes/organizationRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
+const billingRoutes = require('./src/routes/billingRoutes');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/jobs', jobRoutes);  // Add this line
 app.use('/auth', authRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/public', publicRoutes);
+app.use('/billing', billingRoutes);
 
 // Error handling
 app.use(errorHandler);
