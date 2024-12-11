@@ -99,6 +99,25 @@ async processCV(file, jobId, organizationId) {
       };
     }
 
+      // Check for existing application with same email for this job
+      const existingApplication = await CV.findOne({
+        'candidate.email': cvResult.data.email,
+        job: jobId
+      });
+  
+      if (existingApplication) {
+        // Delete the uploaded file since it's a duplicate application
+        const fileName = fileUrl.split('/').pop();
+        await deleteFromS3(fileName);
+  
+        return {
+          success: false,
+          error: 'cv_duplication',
+          fileName: file.originalname,
+          duplicate: true
+        };
+      }
+    
     const cv = await CV.create({
       candidate: cvResult.data,
       job: jobId,

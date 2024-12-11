@@ -78,13 +78,13 @@ async function getPublicOrganizationJobs(req, res) {
       const result = await cvService.processPublicCV(file, jobId);
   
       if (!result.success) {
-        return res.status(400).json({ error: result.error });
+          res.status(500).json({ error: result.error });
       }
-  
-      res.json({
-        message: `Successfully submitted your application`,
-        data: result.data
-      });
+      else
+        res.json({ 
+          message: `Successfully submitted your application`,
+          data: result.data
+        });
     } catch (error) {
       console.error('Public CV upload error:', error);
       res.status(500).json({ error: error.message });
