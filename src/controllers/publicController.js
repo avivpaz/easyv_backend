@@ -66,11 +66,13 @@ async function getPublicOrganizationJobs(req, res) {
     try {
       const { jobId } = req.params;
   
-      if (!req.files || req.files.length === 0) {
+      if (req.body.submissionType === 'file' && !req.file) {
         return res.status(400).json({ error: 'No CV file uploaded' });
       }
   
-      const file = req.files[0]; // Get only the first file
+      if (req.file) {
+        file = req.file;
+      }
       const result = await cvService.processPublicCV(file, jobId);
   
       if (!result.success) {

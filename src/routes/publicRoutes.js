@@ -15,7 +15,6 @@ router.get('/jobs/:id', getPublicJob);
 
 // Handle CV upload for public job applications 
 router.post('/jobs/:jobId/apply', 
-   jobPublicAccess,
    upload.single('cv'), // Changed to single file upload
    handlePublicCVUpload
 );

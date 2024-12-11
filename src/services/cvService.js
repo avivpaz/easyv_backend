@@ -258,6 +258,7 @@ async getAllCVs(organizationId, query = {}) {
     return { success: false, error: error.message };
   }
 },
+
 async processPublicCV(file, jobId) {
   try {
     // Validate job exists and is active
