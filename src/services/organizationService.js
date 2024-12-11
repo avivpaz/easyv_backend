@@ -30,13 +30,12 @@ const organizationService = {
           const fileName = `${organizationId}-logo-${Date.now()}${path.extname(organizationData.logo.originalname)}`;
 
           // Upload new logo
-          await uploadToS3(
+          organization.logoUrl=await uploadToS3(
             organizationData.logo.buffer,
             fileName,
             '',
             process.env.AWS_BUCKET_LOGOS_NAME
           );
-          organization.logoUrl = `${process.env.LOGOS_CLOUDFRONT_DOMAIN}/${fileName}`;
 
         } catch (error) {
           console.error('Logo upload error:', error);

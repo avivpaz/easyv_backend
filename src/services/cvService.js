@@ -1,6 +1,6 @@
 // services/cvService.js
 const openai = require('../config/openai');
-const { CV } = require('../models/index');
+const { CV,Job } = require('../models/index');
 const { uploadToS3,deleteFromS3 } = require('./s3Service');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
@@ -78,7 +78,7 @@ async processCV(file, jobId, organizationId) {
     }
 
     // Upload file to S3
-    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`, 'cvs');
+    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,`${organizationId}/${jobId}`, process.env.AWS_BUCKET_NAME,process.env.CVS_CLOUDFRONT_DOMAIN);
     
     // Extract text from file
     const text = await this.extractTextFromFile(file);
@@ -261,60 +261,20 @@ async getAllCVs(organizationId, query = {}) {
 
 async processPublicCV(file, jobId) {
   try {
-    // Validate job exists and is active
     const job = await Job.findOne({
-      publicId: jobId,
+      _id: jobId,
       status: 'active'
-    });
+    }).populate('organization'); // Add this to populate the organization field
 
     if (!job) {
       return { success: false, error: 'Job not found or not active' };
     }
 
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      return { 
-        success: false, 
-        error: 'Invalid file type. Only PDF and DOC/DOCX files are supported.',
-        fileName: file.originalname 
-      };
-    }
+    // Get the organization ID from the job
+    const organizationId = job.organization._id;
 
-    // Upload file to S3
-    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`, 'cvs');
-
-    // Extract text from file
-    const text = await this.extractTextFromFile(file);
-    
-    // Process the extracted text
-    const cvResult = await this.extractCVInfo(text);
-
-    // Check if the text is actually a CV
-    if (!cvResult.isCV) {
-      // Delete the uploaded file since it's not a CV
-      const fileName = fileUrl.split('/').pop();
-      await deleteFromS3(fileName);
-      
-      return { 
-        success: false, 
-        error: `File is not a CV: ${cvResult.message}`,
-        fileName: file.originalname 
-      };
-    }
-
-    // Create CV record
-    const cv = await CV.create({
-      candidate: cvResult.data,
-      job: job._id,
-      organization: job.organization,
-      fileUrl: fileUrl,
-      originalFileName: file.originalname,
-      fileType: file.mimetype,
-      status: 'pending'
-    });
-
-    return { success: true, data: cv };
+    // Pass both jobId and organizationId to processCV
+    return this.processCV(file, jobId, organizationId);
   } catch (error) {
     return { success: false, error: error.message, fileName: file.originalname };
   }

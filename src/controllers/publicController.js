@@ -1,5 +1,7 @@
 const organizationService = require('../services/organizationService');
 const jobService=require('../services/jobService');
+const cvService=require('../services/cvService');
+
 const mongoose = require('mongoose');
 
 async function getPublicOrganizationDetails(req, res) {
