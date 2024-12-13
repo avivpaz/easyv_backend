@@ -1,7 +1,9 @@
+// controllers/billingController.js
 const billingService = require('../services/billingService');
 const { verifyPaddleWebhook } = require('../config/paddle');
 
-  async function getSubscription(req, res) {
+const billingController = {
+  async getCreditsBalance(req, res) {
     try {
       const { organizationId } = req.params;
       
@@ -10,15 +12,15 @@ const { verifyPaddleWebhook } = require('../config/paddle');
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      const subscription = await billingService.getSubscription(organizationId);
-      res.json(subscription);
+      const balance = await billingService.getCreditsBalance(organizationId);
+      res.json(balance);
     } catch (error) {
-      console.error('Get subscription error:', error);
-      res.status(500).json({ error: 'Failed to fetch subscription information' });
+      console.error('Get credits balance error:', error);
+      res.status(500).json({ error: 'Failed to fetch credits information' });
     }
-  }
+  },
 
-  async function getTransactions(req, res) {
+  async getTransactions(req, res) {
     try {
       const { organizationId } = req.params;
       
@@ -33,9 +35,9 @@ const { verifyPaddleWebhook } = require('../config/paddle');
       console.error('Get transactions error:', error);
       res.status(500).json({ error: 'Failed to fetch transactions' });
     }
-  }
+  },
 
-  async function handleWebhook(req, res) {
+  async handleWebhook(req, res) {
     try {
       const eventData = req.body;
       
@@ -48,12 +50,9 @@ const { verifyPaddleWebhook } = require('../config/paddle');
 
       console.log('Webhook received:', eventData);
 
-      if (eventData.event_type === 'subscription.activated') {
-        await billingService.handleSubscriptionActivated(eventData);
-      } else if (eventData.event_type === 'subscription.updated') {
-        await billingService.handleSubscriptionUpdated(eventData);
-      } else if (eventData.event_type === 'subscription.canceled') {
-        await billingService.handleSubscriptionCanceled(eventData);
+      // Only care about completed transactions that add credits
+      if (eventData.event_type === 'transaction.completed') {
+        await billingService.handleCreditPurchase(eventData);
       }
 
       // Always return 200 to acknowledge receipt
@@ -64,5 +63,6 @@ const { verifyPaddleWebhook } = require('../config/paddle');
       res.json({ success: false, error: error.message });
     }
   }
+};
 
-module.exports = {getSubscription,getTransactions,handleWebhook};
+module.exports = billingController;

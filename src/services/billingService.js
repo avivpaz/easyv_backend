@@ -1,37 +1,18 @@
+// services/billingService.js
 const { Organization } = require('../models');
 const { getPaddleClient } = require('../config/paddle');
 
 const billingService = {
-  async getSubscription(organizationId) {
+  async getCreditsBalance(organizationId) {
     try {
       const organization = await Organization.findById(organizationId)
-        .select('subscription plan');
-
-      if (!organization?.subscription?.customerId) {
-        return {
-          plan: organization?.plan || 'free',
-          subscription: null
-        };
-      }
-
-      // Get real-time subscription data from Paddle
-      const paddle = getPaddleClient();
-      const subscription = await paddle.subscriptions.get(organization.subscription.subscriptionId);
+        .select('credits customerId');
 
       return {
-        plan: organization.plan,
-        subscription: {
-          status: organization.subscription.status,
-          customerId: organization.subscription.customerId,
-          subscriptionId: organization.subscription.subscriptionId,
-          nextBillingDate: subscription.next_billed_at,
-          lastBillingDate: subscription.last_billed_at,
-          amount: subscription.items[0].price.unit_price,
-          interval: subscription.items[0].billing_cycle.interval
-        }
+        credits: organization?.credits || 0
       };
     } catch (error) {
-      console.error('Get subscription error:', error);
+      console.error('Get credits balance error:', error);
       throw error;
     }
   },
@@ -39,24 +20,25 @@ const billingService = {
   async getTransactions(organizationId) {
     try {
       const organization = await Organization.findById(organizationId)
-        .select('subscription');
+        .select('customerId');
 
-      if (!organization?.subscription?.customerId) {
+      if (!organization?.customerId) {
         return [];
       }
 
-      // Get transactions from Paddle
+      // Get transactions directly from Paddle
       const paddle = getPaddleClient();
       const { data: transactions } = await paddle.transactions.list({
-        customer_id: organization.subscription.customerId,
+        customer_id: organization.customerId,
         order: 'desc'
       });
 
+      // Map Paddle transactions to our format
       return transactions.map(transaction => ({
         id: transaction.id,
         date: transaction.created_at,
         amount: transaction.details.totals.total,
-        currency: transaction.currency_code,
+        credits: transaction.custom_data?.credits || 0,
         status: transaction.status,
         invoiceUrl: transaction.invoice_url
       }));
@@ -66,11 +48,13 @@ const billingService = {
     }
   },
 
-  async handleSubscriptionActivated(eventData) {
+  async handleCreditPurchase(eventData) {
     try {
       const organizationId = eventData.data.custom_data?.organizationId;
-      if (!organizationId) {
-        throw new Error('Missing organization ID in webhook data');
+      const credits = parseInt(eventData.data.custom_data?.credits) || 0;
+      
+      if (!organizationId || !credits) {
+        throw new Error('Missing required data in webhook');
       }
 
       const organization = await Organization.findById(organizationId);
@@ -78,75 +62,46 @@ const billingService = {
         throw new Error('Organization not found');
       }
 
-      // Map product ID to plan
-      const planMapping = {
-        'pro_01jegxajzwadrcgw07zdzgt2n8': 'pro',
-        // Add other plan mappings as needed
-      };
+      // Store/update customer ID
+      if (!organization.customerId) {
+        organization.customerId = eventData.data.customer.id;
+      }
 
-      // Update organization subscription data
-      organization.subscription = {
-        customerId: eventData.data.customer_id,
-        subscriptionId: eventData.data.subscription_id,
-        status: 'active',
-        updatedAt: new Date()
-      };
+      // Only add credits if the transaction is completed
+      if (eventData.data.status === 'completed') {
+        organization.credits += credits;
+        await organization.save();
+      }
 
-      organization.plan = planMapping[eventData.data.items[0].product.id] || 'free';
-      
-      await organization.save();
       return organization;
     } catch (error) {
-      console.error('Handle subscription activated error:', error);
+      console.error('Handle credit purchase error:', error);
       throw error;
     }
   },
 
-  async handleSubscriptionUpdated(eventData) {
+  async deductCredits(organizationId, creditsToDeduct = 1) {
     try {
-      const organizationId = eventData.data.custom_data?.organization_id;
-      if (!organizationId) {
-        throw new Error('Missing organization ID in webhook data');
-      }
-
       const organization = await Organization.findById(organizationId);
       if (!organization) {
         throw new Error('Organization not found');
       }
 
-      // Update subscription status
-      organization.subscription.status = eventData.data.status;
-      organization.subscription.updatedAt = new Date();
-      
-      await organization.save();
-      return organization;
-    } catch (error) {
-      console.error('Handle subscription updated error:', error);
-      throw error;
-    }
-  },
-
-  async handleSubscriptionCanceled(eventData) {
-    try {
-      const organizationId = eventData.data.custom_data?.organization_id;
-      if (!organizationId) {
-        throw new Error('Missing organization ID in webhook data');
+      // Check if organization has enough credits
+      if (organization.credits < creditsToDeduct) {
+        throw new Error('Insufficient credits');
       }
 
-      const organization = await Organization.findById(organizationId);
-      if (!organization) {
-        throw new Error('Organization not found');
-      }
-
-      // Update subscription status
-      organization.subscription.status = 'cancelled';
-      organization.subscription.updatedAt = new Date();
-      organization.plan = 'free';
-      
+      // Deduct credits
+      organization.credits -= creditsToDeduct;
       await organization.save();
-      return organization;
+
+      return {
+        success: true,
+        remainingCredits: organization.credits
+      };
     } catch (error) {
-      console.error('Handle subscription canceled error:', error);
+      console.error('Deduct credits error:', error);
       throw error;
     }
   }

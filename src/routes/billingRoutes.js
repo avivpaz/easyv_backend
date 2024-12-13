@@ -1,9 +1,15 @@
+// routes/billing.js
 const express = require('express');
 const router = express.Router();
-const {handleWebhook,getSubscription,getTransactions} = require('../controllers/billingController');
+const { 
+  handleWebhook, 
+  getCreditsBalance, 
+  getTransactions 
+} = require('../controllers/billingController');
 const authMiddleware = require('../middleware/auth');
 
-router.get('/subscription/:organizationId', authMiddleware, getSubscription);
+// Changed from /subscription to /credits
+router.get('/credits/:organizationId', authMiddleware, getCreditsBalance);
 router.get('/transactions/:organizationId', authMiddleware, getTransactions);
 router.post('/webhook', handleWebhook);
 

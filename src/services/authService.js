@@ -8,25 +8,21 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const authService = {
   async login(email, password) {
     try {
-      // Find user and populate organization details
       const user = await User.findOne({ email }).populate('organization');
       
       if (!user) {
         return { success: false, error: 'User not found' };
       }
 
-      // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         return { success: false, error: 'Invalid password' };
       }
 
-      // Check if organization exists
       if (!user.organization) {
         return { success: false, error: 'User organization not found' };
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         { 
           userId: user._id,
@@ -50,7 +46,8 @@ const authService = {
           organization: {
             id: user.organization._id,
             name: user.organization.name,
-            plan: user.organization.plan || 'free',
+            credits: user.organization.credits || 0,
+            customerId: user.organization.customerId || null,
             description: user.organization.description || '',
             website: user.organization.website || '',
             linkedinUrl: user.organization.linkedinUrl || '',
@@ -67,7 +64,7 @@ const authService = {
 
   async createUserWithOrganization(userData) {
     try {
-      const { email, password, organizationName,fullName, role = 'admin' } = userData;
+      const { email, password, organizationName, fullName, role = 'admin' } = userData;
 
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -77,18 +74,20 @@ const authService = {
         };
       }
 
-      const organization = await Organization.create({ name: organizationName });
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const organization = await Organization.create({ 
+        name: organizationName,
+        credits: 0 // Initialize with 0 credits
+      });
 
+      const hashedPassword = await bcrypt.hash(password, 10);
       const user = await User.create({
         email,
         password: hashedPassword,
         organization: organization._id,
-        fullName:fullName,
+        fullName: fullName,
         role
       });
 
-      // Generate JWT token - same as login
       const token = jwt.sign(
         { 
           userId: user._id,
@@ -112,7 +111,13 @@ const authService = {
           organization: {
             id: organization._id,
             name: organization.name,
-            plan: 'free'  // Default plan for new organizations
+            credits: 0,
+            customerId: null,
+            description: '',
+            website: '',
+            linkedinUrl: '',
+            logoUrl: '',
+            needsSetup: true
           }
         }
       };
@@ -121,17 +126,15 @@ const authService = {
       return { success: false, error: error.message };
     }
   },
+
   async googleAuth(token) {
     try {
-      // Verify the Google token
       const ticket = await googleClient.getTokenInfo(token);
     
-      // Verify it's intended for your application
       if (ticket.aud !== process.env.GOOGLE_CLIENT_ID) {
         return { success: false, error: 'Invalid token audience' };
       }
   
-      // Get user info using verified token
       const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -142,7 +145,7 @@ const authService = {
   
       const userData = await userInfoResponse.json();
       const { sub: googleId, email, name } = userData;
-      // Check if user exists
+
       let user = await User.findOne({ 
         $or: [
           { email: email },
@@ -151,16 +154,15 @@ const authService = {
       }).populate('organization');
   
       if (user) {
-        // Update existing user with Google ID if they don't have one
         if (!user.googleId) {
           user.googleId = googleId;
           user.authProvider = 'google';
           await user.save();
         }
       } else {
-        // Create new user and organization
         const organization = await Organization.create({
           name: `My Company`,
+          credits: 0,
           needsSetup: true
         });
   
@@ -173,11 +175,9 @@ const authService = {
           role: 'admin'
         });
   
-        // Populate organization details
         user = await User.findById(user._id).populate('organization');
       }
   
-      // Generate JWT token
       const jwtToken = jwt.sign(
         { 
           userId: user._id,
@@ -201,11 +201,13 @@ const authService = {
           organization: {
             id: user.organization._id,
             name: user.organization.name,
-            plan: user.organization.plan || 'free',
+            credits: user.organization.credits || 0,
+            customerId: user.organization.customerId || null,
             description: user.organization.description || '',
             website: user.organization.website || '',
             linkedinUrl: user.organization.linkedinUrl || '',
             logoUrl: user.organization.logoUrl || '',
+            brandColor:user.organization.brandColor||'',
             needsSetup: !user.organization.description && !user.organization.logoUrl
           }
         }
