@@ -98,13 +98,13 @@ async function getOrganizationJobs(req, res) {
 
   async function generateJobDescription(req, res) {
     try {
-      const { title, description } = req.body;
+      const {  description } = req.body;
       
-      if (!title) {
-        return res.status(400).json({ error: 'Job title is required' });
+      if (!description) {
+        return res.status(400).json({ error: 'Job description is required' });
       }
   
-      const result = await jobService.generateJobDetails(title, description);
+      const result = await jobService.generateJobDetails(description);
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }

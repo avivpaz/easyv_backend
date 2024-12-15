@@ -207,22 +207,29 @@ const jobService = {
     }
   },
 
-  async generateJobDetails(title, description = '') {
+  async generateJobDetails(description) {
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4",
         messages: [{ 
           role: "user", 
-          content: `Generate a job description for "${title}"${description ? ` based on the following context: ${description}` : ''}.
-  The generated description should be 2-3 sentences maximum. 
-  Required skills should be 5-7 core technical skills that best match the role and context. 
-  Nice to have skills should be 3-5 additional relevant skills.`
+          content: `Based on the following job description, generate an appropriate job title and enhance the description.
+Description: ${description}
+Please generate:
+1. A clear, specific job title
+2. An enhanced description (2-3 sentences maximum)
+3. 5-7 core technical skills that best match the role and context
+4. 3-5 additional nice-to-have skills`
         }],
         functions: [{
           name: "processJobDetails",
           parameters: {
             type: "object",
             properties: {
+              title: {
+                type: "string",
+                description: "A clear and specific job title. for example backend developer"
+              },
               description: { 
                 type: "string",
                 description: "A concise job description with responsibilities and requirements"
@@ -242,7 +249,7 @@ const jobService = {
                 description: "Any additional context or notes about how the job details were tailored"
               }
             },
-            required: ["description", "requiredSkills", "niceToHaveSkills"]
+            required: ["title", "description", "requiredSkills", "niceToHaveSkills"]
           }
         }],
         function_call: { name: "processJobDetails" }
@@ -253,6 +260,7 @@ const jobService = {
       return {
         success: true,
         data: {
+          title: functionCallResult.title || '',
           description: functionCallResult.description || '',
           requiredSkills: Array.isArray(functionCallResult.requiredSkills) 
             ? functionCallResult.requiredSkills.slice(0, 7)
