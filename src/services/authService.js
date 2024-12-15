@@ -76,7 +76,7 @@ const authService = {
 
       const organization = await Organization.create({ 
         name: organizationName,
-        credits: 0 // Initialize with 0 credits
+        credits: 5 // Initialize with 0 credits
       });
 
       const hashedPassword = await bcrypt.hash(password, 10);
