@@ -67,30 +67,44 @@ async function getPublicOrganizationJobs(req, res) {
    async function handlePublicCVUpload(req, res) {
     try {
       const { jobId } = req.params;
+      const { submissionType } = req.body;
   
-      if (req.body.submissionType === 'file' && !req.file) {
+      // Validate required fields based on submission type
+      if (submissionType === 'file' && !req.file) {
         return res.status(400).json({ error: 'No CV file uploaded' });
       }
   
-      if (req.file) {
-        file = req.file;
+      if (submissionType === 'text') {
+        const requiredFields = ['fullName', 'email', 'phoneNumber', 'cvText'];
+        const missingFields = requiredFields.filter(field => !req.body[field]);
+        
+        if (missingFields.length > 0) {
+          return res.status(400).json({ 
+            error: `Missing required fields: ${missingFields.join(', ')}` 
+          });
+        }
       }
-      const result = await cvService.processPublicCV(file, jobId);
+  
+      const result = await cvService.processPublicCV(
+        req.file, 
+        jobId,
+        req.body
+      );
   
       if (!result.success) {
-          res.status(500).json({ error: result.error });
+        return res.status(result.error === 'cv_duplication' ? 400 : 500)
+          .json({ error: result.error });
       }
-      else
-        res.json({ 
-          message: `Successfully submitted your application`,
-          data: result.data
-        });
+  
+      res.json({ 
+        message: 'Successfully submitted your application',
+        data: result.data
+      });
     } catch (error) {
       console.error('Public CV upload error:', error);
       res.status(500).json({ error: error.message });
     }
   }
-
   module.exports = {
     getPublicOrganizationDetails,
     getPublicOrganizationJobs,

@@ -125,6 +125,7 @@ async processCV(file, jobId, organizationId) {
       fileUrl: fileUrl,
       originalFileName: file.originalname,
       fileType: file.mimetype,
+      submissionType: 'file', // Add this
       status: 'pending'
     });
 
@@ -215,8 +216,10 @@ async extractCVInfo(text) {
                 properties: {
                   degree: { type: "string" },
                   institution: { type: "string" },
-                  year: { type: "string" }
-                }
+                  year: { 
+                    type: "string",
+                    description: "Year range in format YYYY-YYYY (e.g. 2018-2022) or single year YYYY if ongoing"
+                  }                }
               }
             },
             experience: {
@@ -226,7 +229,10 @@ async extractCVInfo(text) {
                 properties: {
                   company: { type: "string" },
                   position: { type: "string" },
-                  dates: { type: "string" },
+                  dates: { 
+                    type: "string",
+                    description: "Year range in format YYYY-YYYY (e.g. 2020-2023) or YYYY-present if current position"
+                  },
                   responsibilities: { type: "array", items: { type: "string" } }
                 }
               }
@@ -277,26 +283,118 @@ async getAllCVs(organizationId, query = {}) {
     return { success: false, error: error.message };
   }
 },
-
-async processPublicCV(file, jobId) {
+async processPublicCV(file, jobId, formData) {
   try {
     const job = await Job.findOne({
       _id: jobId,
       status: 'active'
-    }).populate('organization'); // Add this to populate the organization field
+    }).populate('organization');
 
     if (!job) {
       return { success: false, error: 'Job not found or not active' };
     }
 
-    // Get the organization ID from the job
     const organizationId = job.organization._id;
 
-    // Pass both jobId and organizationId to processCV
-    return this.processCV(file, jobId, organizationId);
+    // Split processing based on submission type
+    if (formData.submissionType === 'file') {
+      return this.processCV(file, jobId, organizationId);
+    } else {
+      return this.processTextSubmission(formData, jobId, organizationId);
+    }
   } catch (error) {
-    return { success: false, error: error.message, fileName: file.originalname };
+    return { success: false, error: error.message };
+  }
+},
+async processTextSubmission(formData, jobId, organizationId) {
+  try {
+    // Check for duplicate application
+    const existingApplication = await CV.findOne({
+      'candidate.email': formData.email,
+      job: jobId
+    });
+
+    if (existingApplication) {
+      return {
+        success: false,
+        error: 'cv_duplication',
+        duplicate: true
+      };
+    }
+
+    // Process the text content using GPT-4
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{
+        role: "user",
+        content: "Extract professional experience, education, and skills from this text. Format all date ranges as year-year (e.g. 2020-2023): " + formData.cvText
+      }],
+      functions: [{
+        name: "processApplicationText",
+        parameters: {
+          type: "object",
+          properties: {
+            education: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  degree: { type: "string" },
+                  institution: { type: "string" },
+                  year: { 
+                    type: "string",
+                    description: "Year range in format YYYY-YYYY (e.g. 2018-2022) or single year YYYY if ongoing"
+                  }
+                }
+              }
+            },
+            experience: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  company: { type: "string" },
+                  position: { type: "string" },
+                  dates: { 
+                    type: "string",
+                    description: "Year range in format YYYY-YYYY (e.g. 2020-2023) or YYYY-present if current position"
+                  },
+                  responsibilities: { type: "array", items: { type: "string" } }
+                }
+              }
+            },
+            skills: { type: "array", items: { type: "string" } }
+          },
+          required: ["education", "experience", "skills"]
+        }
+      }],
+      function_call: { name: "processApplicationText" }
+    });
+    
+    const extractedData = JSON.parse(response.choices[0].message.function_call.arguments);
+
+    // Create CV record with form data and extracted information
+    const cv = await CV.create({
+      candidate: {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phoneNumber,
+        education: extractedData.education,
+        experience: extractedData.experience,
+        skills: extractedData.skills
+      },
+      job: jobId,
+      organization: organizationId,
+      submissionType: 'text', // Add this
+      status: 'pending'
+    });
+
+    return { success: true, data: cv };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 }
+
+
 };
 module.exports = cvService;

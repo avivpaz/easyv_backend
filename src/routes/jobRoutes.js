@@ -16,5 +16,5 @@ router.post('/:id/cv',authMiddleware, upload.array('cvs', 10), handleCVUpload);
 // router.post('/:id/cv', jobPublicAccess, upload.array('cvs', 10), handleCVUpload);
 router.delete('/:id', authMiddleware, deleteJob);
 router.post('/description', generateJobDescription);
-
+    
 module.exports = router;

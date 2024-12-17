@@ -70,7 +70,8 @@ const cvSchema = new mongoose.Schema({
   },
   job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
-  fileUrl: { type: String, required: true },
+  fileUrl: { type: String, required: false }, // Changed from required: true
+  submissionType: { type: String, enum: ['file', 'text'], required: true }, // Added this field
   status: { type: String, enum: ['pending', 'reviewed', 'rejected'], default: 'pending' },
   createdAt: { type: Date, default: Date.now }
 });
