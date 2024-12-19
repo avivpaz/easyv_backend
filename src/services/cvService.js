@@ -94,7 +94,7 @@ async processCV(file, jobId, organizationId) {
       
       return { 
         success: false, 
-        error: `File is not a CV: ${cvResult.message}`,
+        error: `invalid_file`,
         fileName: file.originalname 
       };
     }
@@ -342,6 +342,42 @@ async processTextSubmission(formData, jobId, organizationId) {
         success: false,
         error: 'cv_duplication',
         duplicate: true
+      };
+    }
+
+    const validationResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{
+        role: "user",
+        content: "Analyze the text and validate if it's suitable as a job application: " + formData.cvText
+      }],
+      functions: [{
+        name: "validateCV",
+        parameters: {
+          type: "object",
+          properties: {
+            isValid: { 
+              type: "boolean",
+              description: "Whether the text is a valid CV and job application"
+            },
+            reason: { 
+              type: "string",
+              description: "Explanation of validation result"
+            }
+          },
+          required: ["isValid", "reason", "type"]
+        }
+      }],
+      function_call: { name: "validateCV" }
+    });
+
+    const validation = JSON.parse(validationResponse.choices[0].message.function_call.arguments);
+    
+    if (!validation.isValid) {
+      return {
+        success: false,
+        error: 'invalid_submission',
+        message: validation.reason
       };
     }
 
