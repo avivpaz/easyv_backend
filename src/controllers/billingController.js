@@ -38,29 +38,65 @@ const billingController = {
   },
 
   async handleWebhook(req, res) {
+    const eventData = req.body;
+    console.log(`Processing webhook event_id: ${eventData.event_id}, type: ${eventData.event_type}`);
+
     try {
-      const eventData = req.body;
-      
       // Verify webhook signature
       const isValid = await verifyPaddleWebhook(req);
       if (!isValid) {
-        console.error('Invalid webhook signature');
-        return res.status(400).json({ error: 'Invalid webhook signature' });
+        console.error(`Invalid webhook signature for event: ${eventData.event_id}`);
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid webhook signature'
+        });
       }
 
-      console.log('Webhook received:', eventData);
-
-      // Only care about completed transactions that add credits
+      // Only process completed transactions
       if (eventData.event_type === 'transaction.completed') {
-        await billingService.handleCreditPurchase(eventData);
+        // Check if this is a credit purchase event
+        const credits = parseInt(eventData.data.custom_data?.credits);
+        if (!credits) {
+          console.log(`Skipping non-credit purchase event: ${eventData.event_id}`);
+          return res.status(200).json({
+            success: true,
+            message: 'Not a credit purchase event'
+          });
+        }
+
+        console.log(`Processing credit purchase event: ${eventData.event_id}, credits: ${credits}`);
+        const result = await billingService.handleCreditPurchase(eventData);
+        
+        if (result === null) {
+          console.log(`Event ${eventData.event_id} was already processed`);
+          return res.status(200).json({
+            success: true,
+            message: 'Event already processed'
+          });
+        }
+
+        console.log(`Successfully processed event ${eventData.event_id}`);
+        return res.status(200).json({
+          success: true,
+          message: 'Credit purchase processed'
+        });
       }
 
-      // Always return 200 to acknowledge receipt
-      res.json({ success: true });
+      // For non-transaction.completed events
+      console.log(`Ignoring non-completed transaction event: ${eventData.event_id}`);
+      return res.status(200).json({
+        success: true,
+        message: 'Event type not relevant'
+      });
+
     } catch (error) {
-      console.error('Webhook handler error:', error);
-      // Still return 200 to acknowledge receipt
-      res.json({ success: false, error: error.message });
+      console.error(`Webhook error for event ${eventData.event_id}:`, error);
+      
+      // Still return 200 to prevent Paddle from retrying
+      return res.status(200).json({
+        success: false,
+        error: error.message
+      });
     }
   }
 };

@@ -180,7 +180,7 @@ const jobService = {
       return { success: false, error: 'Failed to fetch job' };
     }
    },
-  async getJobCVs(jobId, organizationId) {
+   async getJobCVs(jobId, organizationId, userId) {
     try {
       const job = await Job.findOne({
         _id: jobId,
@@ -191,26 +191,72 @@ const jobService = {
         return { success: false, error: 'Job not found or access denied' };
       }
 
+      // Get all CVs for the job
       const cvs = await CV.find({
         job: jobId,
         organization: organizationId
-      })
-        .sort({ createdAt: -1 })
-        .select('-__v');
+      }).sort({ createdAt: -1 });
+
+      // Process each CV based on unlock status
+      const processedCVs = cvs.map(cv => {
+        const isUnlocked = cv.visibility === 'unlocked';
+
+        if (isUnlocked) {
+          // Return full CV details if unlocked
+          return {
+            _id: cv._id,
+            candidate: cv.candidate,
+            status: cv.status,
+            fileUrl: cv.fileUrl,
+            rawText:cv.rawText,
+            submissionType: cv.submissionType,
+            createdAt: cv.createdAt,
+            visibility: 'unlocked'
+          };
+        } else {
+          // Return limited CV details if locked
+          return {
+            _id: cv._id,
+            status: cv.status,
+            candidate: {
+              // Only return basic candidate info
+              fullName: cv.candidate.fullName.replace(/(?<=^[\w-]{3})./g, '*'),
+              experience: cv.candidate.experience?.length || 0,
+              education: cv.candidate.education?.length || 0,
+              skills: cv.candidate.skills?.length || 0
+            },
+            submissionType: cv.submissionType,
+            createdAt: cv.createdAt,
+            visibility: 'locked'
+          };
+        }
+      });
+
+      // Group CVs by visibility status
+      const groupedCVs = {
+        unlocked: processedCVs.filter(cv => cv.visibility === 'unlocked'),
+        locked: processedCVs.filter(cv => cv.visibility === 'locked')
+      };
 
       return {
         success: true,
-        data: cvs
+        data: {
+          ...groupedCVs,
+          stats: {
+            total: cvs.length,
+            unlocked: groupedCVs.unlocked.length,
+            locked: groupedCVs.locked.length
+          }
+        }
       };
     } catch (error) {
       return { success: false, error: error.message };
     }
   },
-
   async generateJobDetails(description) {
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o",
         messages: [{ 
           role: "user", 
           content: `Based on the following job description, generate an appropriate job title and enhance the description.

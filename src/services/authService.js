@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Organization } = require('../models');
 const { OAuth2Client } = require('google-auth-library');
+const billingService = require('./billingService');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const authService = {
@@ -22,6 +23,9 @@ const authService = {
       if (!user.organization) {
         return { success: false, error: 'User organization not found' };
       }
+
+      // Get credits balance from billing service
+      const { credits } = await billingService.getCreditsBalance(user.organization._id);
 
       const token = jwt.sign(
         { 
@@ -46,7 +50,7 @@ const authService = {
           organization: {
             id: user.organization._id,
             name: user.organization.name,
-            credits: user.organization.credits || 0,
+            credits: credits,
             customerId: user.organization.customerId || null,
             description: user.organization.description || '',
             website: user.organization.website || '',
@@ -75,9 +79,16 @@ const authService = {
       }
 
       const organization = await Organization.create({ 
-        name: organizationName,
-        credits: 5 // Initialize with 0 credits
+        name: organizationName
       });
+
+      // Add initial credits using billing service
+      await billingService.addCreditsManually(
+        organization._id,
+        5,
+        null,
+        'Initial signup bonus credits'
+      );
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await User.create({
@@ -111,7 +122,7 @@ const authService = {
           organization: {
             id: organization._id,
             name: organization.name,
-            credits: 0,
+            credits: 5, // Initial credits
             customerId: null,
             description: '',
             website: '',
@@ -162,9 +173,16 @@ const authService = {
       } else {
         const organization = await Organization.create({
           name: `My Company`,
-          credits: 0,
           needsSetup: true
         });
+
+        // Add initial credits for new Google sign-ups
+        await billingService.addCreditsManually(
+          organization._id,
+          5,
+          null,
+          'Initial Google signup bonus credits'
+        );
   
         user = await User.create({
           email,
@@ -177,6 +195,9 @@ const authService = {
   
         user = await User.findById(user._id).populate('organization');
       }
+
+      // Get current credits balance
+      const { credits } = await billingService.getCreditsBalance(user.organization._id);
   
       const jwtToken = jwt.sign(
         { 
@@ -201,13 +222,13 @@ const authService = {
           organization: {
             id: user.organization._id,
             name: user.organization.name,
-            credits: user.organization.credits || 0,
+            credits: credits,
             customerId: user.organization.customerId || null,
             description: user.organization.description || '',
             website: user.organization.website || '',
             linkedinUrl: user.organization.linkedinUrl || '',
             logoUrl: user.organization.logoUrl || '',
-            brandColor:user.organization.brandColor||'',
+            brandColor: user.organization.brandColor || '',
             needsSetup: !user.organization.description && !user.organization.logoUrl
           }
         }

@@ -29,7 +29,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/cv', cvRoutes);
+app.use('/cvs', cvRoutes);
 app.use('/jobs', jobRoutes);  // Add this line
 app.use('/auth', authRoutes);
 app.use('/organizations', organizationRoutes);

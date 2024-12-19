@@ -160,7 +160,7 @@ async extractCVInfo(text) {
   try {
     // First, validate if it's a CV using GPT-4 with function calling
     const validationResponse = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [{
         role: "user",
         content: "Analyze if this text is a CV/resume: " + text
@@ -324,7 +324,7 @@ async processTextSubmission(formData, jobId, organizationId) {
 
     // Process the text content using GPT-4
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [{
         role: "user",
         content: "Extract professional experience, education, and skills from this text. Format all date ranges as year-year (e.g. 2020-2023): " + formData.cvText
@@ -357,7 +357,7 @@ async processTextSubmission(formData, jobId, organizationId) {
                   position: { type: "string" },
                   dates: { 
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2020-2023) or YYYY-present if current position"
+                    description: "Year range in format YYYY-YYYY (e.g. 2021-2024) or YYYY-present if current position"
                   },
                   responsibilities: { type: "array", items: { type: "string" } }
                 }
@@ -385,7 +385,8 @@ async processTextSubmission(formData, jobId, organizationId) {
       },
       job: jobId,
       organization: organizationId,
-      submissionType: 'text', // Add this
+      submissionType: 'text', 
+      rawText: formData.cvText, 
       status: 'pending'
     });
 

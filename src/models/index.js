@@ -8,7 +8,6 @@ const organizationSchema = new mongoose.Schema({
   linkedinUrl: { type: String },
   logoUrl: { type: String },
   brandColor: { type: String },
-  credits: { type: Number, default: 0 }, // Only store current balance
   customerId: { type: String },          // Paddle customer ID
   createdAt: { type: Date, default: Date.now }
 });
@@ -70,15 +69,74 @@ const cvSchema = new mongoose.Schema({
   },
   job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
-  fileUrl: { type: String, required: false }, // Changed from required: true
-  submissionType: { type: String, enum: ['file', 'text'], required: true }, // Added this field
+  fileUrl: { type: String, required: false },
+  submissionType: { type: String, enum: ['file', 'text'], required: true },
+  rawText: { type: String }, // Added field for storing raw CV text
   status: { type: String, enum: ['pending', 'reviewed', 'rejected'], default: 'pending' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  visibility: {
+    type: String,
+    enum: ['locked', 'unlocked'],
+    default: 'locked'
+  },
+  unlockedBy: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    unlockedAt: { type: Date, default: Date.now }
+  }]
+});
+const creditTransactionSchema = new mongoose.Schema({
+  organization: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Organization', 
+    required: true 
+  },
+  type: { 
+    type: String, 
+    enum: ['purchase', 'deduction', 'refund', 'adjustment'],
+    required: true 
+  },
+  amount: { 
+    type: Number, 
+    required: true  // Positive for purchases/refunds, negative for deductions
+  },
+  balanceAfter: { 
+    type: Number, 
+    required: true 
+  },
+  relatedEntity: {
+    entityType: { 
+      type: String, 
+      enum: ['cv', 'other'] 
+    },
+    entityId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      refPath: 'relatedEntity.entityType' 
+    }
+  },
+  metadata: {
+    paddleTransactionId: String,    // For purchases
+    paddleEventId: String,          // For webhook deduplication
+    description: String,            // Optional description
+    performedBy: {                  // User who performed the action
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  }
 });
 
+// Add a unique index for paddleEventId
+creditTransactionSchema.index({ 'metadata.paddleEventId': 1 }, { 
+  unique: true, 
+  sparse: true  // Allows null values
+});
 module.exports = {
   Organization: mongoose.model('Organization', organizationSchema),
   User: mongoose.model('User', userSchema),
   Job: mongoose.model('Job', jobSchema),
-  CV: mongoose.model('CV', cvSchema)
+  CV: mongoose.model('CV', cvSchema),
+  CreditTransaction: mongoose.model('CreditTransaction', creditTransactionSchema)
 };
