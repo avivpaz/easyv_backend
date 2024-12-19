@@ -196,7 +196,7 @@ async extractCVInfo(text) {
 
     // If it is a CV, proceed with information extraction
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [{
         role: "user",
         content: "Extract key information from this CV. If the CV is not in English, translate all information to English, including the name, in your response: " + text
@@ -209,6 +209,10 @@ async extractCVInfo(text) {
             fullName: { type: "string" },
             email: { type: "string" },
             phone: { type: "string" },
+            summary: { 
+              type: "string",
+              description: "Create a new 2-3 sentence summary with: number of years of experience, most recant role, specialties, and major achievements. Example: 'Senior Software Engineer with 8 years in cloud/DevOps. Leads 12-person AWS team, achieved 60% faster deployments and $2M savings. Expert in Python and high-availability systems.'",
+            },
             education: {
               type: "array",
               items: {
@@ -238,9 +242,28 @@ async extractCVInfo(text) {
               }
             },
             skills: { type: "array", items: { type: "string" } },
+            languages: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { 
+                    type: "string",
+                    description: "Name of the language"
+                  },
+                  proficiency: { 
+                    type: "string",
+                    enum: ["Native", "Fluent", "Advanced", "Intermediate", "Basic"],
+                    description: "Proficiency level in the language"
+                  }
+                },
+                required: ["name", "proficiency"]
+              },
+              description: "List of languages the candidate knows with proficiency levels"
+            },
             originalLanguage: { type: "string", description: "The original language of the CV" }
           },
-          required: ["fullName", "email", "phone", "education", "experience", "skills", "originalLanguage"]
+          required: ["fullName", "email", "phone","summary", "education", "experience", "skills", "languages","originalLanguage"]
         }
       }],
       function_call: { name: "processCVData" }
@@ -327,13 +350,17 @@ async processTextSubmission(formData, jobId, organizationId) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: "Extract professional experience, education, and skills from this text. Format all date ranges as year-year (e.g. 2020-2023): " + formData.cvText
+        content: "Extract professional experience, education, skills and summary from this text. Format all date ranges as year-year (e.g. 2020-2023): " + formData.cvText
       }],
       functions: [{
         name: "processApplicationText",
         parameters: {
           type: "object",
           properties: {
+            summary: { 
+              type: "string",
+              description: "A concise professional summary of the candidate highlighting their key qualifications and experience. make it short, 2-3 sentences"
+            },
             education: {
               type: "array",
               items: {
@@ -365,7 +392,7 @@ async processTextSubmission(formData, jobId, organizationId) {
             },
             skills: { type: "array", items: { type: "string" } }
           },
-          required: ["education", "experience", "skills"]
+          required: ["education", "experience", "skills","summary"]
         }
       }],
       function_call: { name: "processApplicationText" }
@@ -379,6 +406,7 @@ async processTextSubmission(formData, jobId, organizationId) {
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phoneNumber,
+        summary:extractedData.summary,
         education: extractedData.education,
         experience: extractedData.experience,
         skills: extractedData.skills

@@ -54,6 +54,7 @@ const cvSchema = new mongoose.Schema({
     fullName: String,
     email: String,
     phone: String,
+    summary: String,
     education: [{
       degree: String,
       institution: String,

@@ -140,6 +140,7 @@ const authService = {
 
   async googleAuth(token) {
     try {
+      
       const ticket = await googleClient.getTokenInfo(token);
     
       if (ticket.aud !== process.env.GOOGLE_CLIENT_ID) {
