@@ -34,7 +34,8 @@ const organizationService = {
             organizationData.logo.buffer,
             fileName,
             '',
-            process.env.AWS_BUCKET_LOGOS_NAME
+            process.env.AWS_BUCKET_LOGOS_NAME,
+            process.env.LOGOS_CLOUDFRONT_DOMAIN
           );
 
         } catch (error) {
