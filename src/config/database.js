@@ -15,16 +15,20 @@
 const mongoose = require('mongoose');
 
 async function connectDB() {
+  const certPath = process.env.CA_CERT_PATH || '/var/app/current/certs/rds-combined-ca-bundle.pem';
+  console.log('Certificate path:', certPath);
+  console.log('Certificate exists:', fs.existsSync(certPath));
+
   try {
-    const certPath = process.env.CA_CERT_PATH || './certs/rds-combined-ca-bundle.pem';
-console.log('Certificate path:', certPath);
-const fs = require('fs');
-console.log('Certificate exists:', fs.existsSync(certPath));
     await mongoose.connect(process.env.MONGODB_URI, {
       tls: true,
       tlsCAFile: certPath,
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
+      directConnection: true,
+      retryWrites: true,
       authSource: 'admin',
-      authMechanism: 'SCRAM-SHA-1', // Required for DocumentDB
+      authMechanism: 'SCRAM-SHA-1'
     });
     console.log('MongoDB connected');
   } catch (error) {
