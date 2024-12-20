@@ -18,7 +18,7 @@ async function connectDB() {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       tls: true,
-      tlsCAFile: '../../certs/rds-combined-ca-bundle.pem', // Path to the certificate
+      tlsCAFile: process.env.CA_CERT_PATH || './certs/rds-combined-ca-bundle.pem',
       useNewUrlParser: true,
       useUnifiedTopology: true,
       authSource: 'admin',
