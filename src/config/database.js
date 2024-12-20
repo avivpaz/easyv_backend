@@ -46,7 +46,7 @@ async function connectDB() {
       await mongoose.connect(process.env.MONGODB_URI, {
         tls: true,
         tlsCAFile: certPath,
-        tlsAllowInvalidCertificates: false,
+        tlsAllowInvalidCertificates: true,
         tlsAllowInvalidHostnames: false,
         directConnection: true,
         retryWrites: true,
