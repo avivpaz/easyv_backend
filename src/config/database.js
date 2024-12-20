@@ -42,7 +42,7 @@ async function connectDB() {
       console.log('Reading certificate file...');
       const cert = fs.readFileSync(certPath);
       console.log('Certificate loaded successfully');
-      console.log(process.env.MONGODB_URI)
+      console.log('MongoDB URI:', process.env.MONGODB_URI);
       await mongoose.connect(process.env.MONGODB_URI, {
         tls: true,
         tlsCAFile: certPath,
@@ -56,7 +56,7 @@ async function connectDB() {
 
       // Log connection details (sanitized)
       const connectedHost = new URL(mongoose.connection.host).hostname;
-      console.log('Connected to host:', connectedHost);
+      console.log('Connected to host:', mongoose.connection.host); // Direct use of host
       console.log('Database name:', mongoose.connection.name);
 
     } else {
