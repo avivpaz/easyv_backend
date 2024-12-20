@@ -1,5 +1,20 @@
 const { Job, CV } = require('../models');
 const openai = require('../config/openai');
+function maskFullName(fullName) {
+  if (!fullName) return '';
+  
+  // Split the name into parts
+  const nameParts = fullName.split(' ');
+  
+  // Mask each part: show first letter, mask the rest
+  const maskedParts = nameParts.map(part => {
+    if (!part) return '';
+    return part[0] + '*'.repeat(Math.max(part.length - 1, 1));
+  });
+  
+  // Join the parts back together
+  return maskedParts.join(' ');
+}
 
 const jobService = {
   async createJob(jobData, organizationId) {
@@ -220,7 +235,7 @@ const jobService = {
             status: cv.status,
             candidate: {
               // Only return basic candidate info
-              fullName: cv.candidate.fullName.replace(/(?<=^[\w-]{3})./g, '*'),
+              fullName: maskFullName(cv.candidate.fullName),
               experience: cv.candidate.experience?.length || 0,
               education: cv.candidate.education?.length || 0,
               skills: cv.candidate.skills?.length || 0
@@ -253,6 +268,8 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
+
+  
   async generateJobDetails(description) {
     try {
       const response = await openai.chat.completions.create({

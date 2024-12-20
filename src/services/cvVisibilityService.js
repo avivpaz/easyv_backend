@@ -25,7 +25,7 @@ class CVVisibilityService {
     if (!balanceCheck.hasEnoughCredits) {
       return {
         success: false,
-        error: 'Insufficient credits',
+        error: 'insufficient_credits',
         remainingCredits: balanceCheck.availableCredits,
         requiredCredits: balanceCheck.requiredCredits,
         availableCVs: cvs.length
