@@ -38,7 +38,9 @@ app.use('/billing', billingRoutes);
 
 // Error handling
 app.use(errorHandler);
-
+app.get('/', (req, res) => {
+  res.status(200).send('OK');
+});
 // Database connection
 connectDB()
   .then(() => {
