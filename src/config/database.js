@@ -44,14 +44,8 @@ async function connectDB() {
       console.log('Certificate loaded successfully');
       console.log('MongoDB URI:', process.env.MONGODB_URI);
       await mongoose.connect(process.env.MONGODB_URI, {
-        tls: true,
         tlsCAFile: certPath,
         tlsAllowInvalidCertificates: true,
-        tlsAllowInvalidHostnames: false,
-        directConnection: true,
-        retryWrites: true,
-        authSource: 'admin',
-        authMechanism: 'SCRAM-SHA-1'
       });
 
       // Log connection details (sanitized)
