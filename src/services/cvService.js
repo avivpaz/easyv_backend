@@ -373,7 +373,7 @@ async processTextSubmission(formData, jobId, organizationId) {
 
     const validation = JSON.parse(validationResponse.choices[0].message.function_call.arguments);
     
-    if (!validation.isValid) {
+    if (false) {
       return {
         success: false,
         error: 'invalid_submission',
