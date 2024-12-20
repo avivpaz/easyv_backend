@@ -24,7 +24,7 @@ async function connectDB() {
       tlsInsecure: true,
       directConnection: true,
       authSource: 'admin'
-    });
+        });
     console.log('MongoDB connected');
   } catch (error) {
     console.error('MongoDB connection error:', error);
