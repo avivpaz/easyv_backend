@@ -49,7 +49,6 @@ async function connectDB() {
       });
 
       // Log connection details (sanitized)
-      const connectedHost = new URL(mongoose.connection.host).hostname;
       console.log('Connected to host:', mongoose.connection.host); // Direct use of host
       console.log('Database name:', mongoose.connection.name);
 
