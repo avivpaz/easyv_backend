@@ -16,11 +16,12 @@ const mongoose = require('mongoose');
 
 async function connectDB() {
   try {
+    const certPath = process.env.CA_CERT_PATH || './certs/rds-combined-ca-bundle.pem';
+console.log('Certificate path:', certPath);
+console.log('Certificate exists:', fs.existsSync(certPath));
     await mongoose.connect(process.env.MONGODB_URI, {
       tls: true,
-      tlsCAFile: process.env.CA_CERT_PATH || './certs/rds-combined-ca-bundle.pem',
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      tlsCAFile: certPath,
       authSource: 'admin',
       authMechanism: 'SCRAM-SHA-1', // Required for DocumentDB
     });
