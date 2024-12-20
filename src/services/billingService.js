@@ -42,12 +42,12 @@ class BillingService {
       };
 
       const isDocumentDB = process.env.NODE_ENV === 'production';
-
-      if (isDocumentDB) {
+    // TODO change this false to check i document db 
+      if (false) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
-        try {
+        try { 
           const transaction = await CreditTransaction.create([transactionData], { session });
           await session.commitTransaction();
           return transaction[0];
