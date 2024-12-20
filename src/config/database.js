@@ -13,6 +13,7 @@
 // module.exports = connectDB;
 
 const mongoose = require('mongoose');
+const fs = require('fs');
 
 async function connectDB() {
   const certPath = process.env.CA_CERT_PATH || '/var/app/current/certs/rds-combined-ca-bundle.pem';
