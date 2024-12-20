@@ -46,6 +46,8 @@ async function connectDB() {
       await mongoose.connect(process.env.MONGODB_URI, {
         tlsCAFile: certPath,
         tlsAllowInvalidCertificates: true,
+        authMechanism: 'SCRAM-SHA-1'
+
       });
 
       // Log connection details (sanitized)
@@ -61,12 +63,6 @@ async function connectDB() {
   } catch (error) {
     console.error('MongoDB connection error:', error);
     if (error.name === 'MongooseServerSelectionError') {
-      console.error('\nDetailed error analysis:');
-      console.error('1. Server Selection Error - This usually means:');
-      console.error('   - The MongoDB URI is incorrect or server is unreachable');
-      console.error('   - SSL/TLS certificate issues');
-      console.error('   - Authentication problems');
-
       if (process.env.NODE_ENV === 'production') {
         console.error('\n2. Certificate details:');
         const certPath = process.env.CA_CERT_PATH || '/var/app/current/certs/eu-west-1-bundle.pem';
