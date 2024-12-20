@@ -42,7 +42,7 @@ async function connectDB() {
       console.log('Reading certificate file...');
       const cert = fs.readFileSync(certPath);
       console.log('Certificate loaded successfully');
-
+      console.log(process.env.MONGODB_URI)
       await mongoose.connect(process.env.MONGODB_URI, {
         tls: true,
         tlsCAFile: certPath,
