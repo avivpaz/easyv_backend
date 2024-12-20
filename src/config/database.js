@@ -22,6 +22,7 @@ async function connectDB() {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       authSource: 'admin',
+      authMechanism: 'SCRAM-SHA-1', // Required for DocumentDB
     });
     console.log('MongoDB connected');
   } catch (error) {
