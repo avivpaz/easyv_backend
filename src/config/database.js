@@ -25,11 +25,7 @@ mongoose.connection.on('error', (err) => {
 async function connectDB() {
   // Enable mongoose debug mode in non-production
   if (process.env.NODE_ENV !== 'production') {
-    mongoose.set('debug', {
-      color: true,
-      debug: true,
-      shell: true,
-    });
+    mongoose.set('debug', true);
   }
 
   try {
@@ -55,15 +51,13 @@ async function connectDB() {
         directConnection: true,
         retryWrites: true,
         authSource: 'admin',
-        authMechanism: 'SCRAM-SHA-1',
-        serverSelectionTimeoutMS: 5000
+        authMechanism: 'SCRAM-SHA-1'
       });
 
       // Log connection details (sanitized)
       const connectedHost = new URL(mongoose.connection.host).hostname;
       console.log('Connected to host:', connectedHost);
       console.log('Database name:', mongoose.connection.name);
-      console.log('MongoDB version:', mongoose.version);
 
     } else {
       // Local development connection
@@ -92,11 +86,6 @@ async function connectDB() {
         } catch (statError) {
           console.error('   - Unable to read certificate stats:', statError.message);
         }
-        console.error('\n3. Connection settings:');
-        console.error('   - TLS enabled: true');
-        console.error('   - Direct connection: true');
-        console.error('   - Auth source: admin');
-        console.error('   - Auth mechanism: SCRAM-SHA-1');
       }
     }
     process.exit(1);
