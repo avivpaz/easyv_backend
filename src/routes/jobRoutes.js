@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
-const { createJob, getOrganizationJobs, getJob, getJobCVs, uploadJobCVs ,deleteJob,generateJobDescription} = require('../controllers/jobController');
+const { createJob, getOrganizationJobs, getJob, getJobCVs, uploadJobCVs ,deleteJob,generateJobDescription,generateSocialShare} = require('../controllers/jobController');
 const {handleCVUpload } = require('../controllers/cvController');
 
 const authMiddleware = require('../middleware/auth');
@@ -22,4 +22,6 @@ router.delete('/:id', authMiddleware, deleteJob);
 router.post('/description', generateJobDescription);
 router.post('/:jobId/unlock-cvs', unlockNextCVsByJob);
 router.get('/:jobId/unlock-stats', getJobUnlockStats);
+router.get('/:jobId/social-share', authMiddleware, generateSocialShare);
+
 module.exports = router;

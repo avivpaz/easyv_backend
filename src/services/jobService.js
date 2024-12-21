@@ -268,7 +268,86 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
+  async generateSocialShareText(jobId, organizationId, platform = 'twitter') {
+    try {
+      // Get the job details first
+      const job = await Job.findOne({ 
+        _id: jobId,
+        organization: organizationId,
+        status: { $ne: 'deleted' }
+      }).select('title description location workType employmentType requiredSkills');
 
+      if (!job) {
+        return { success: false, error: 'Job not found' };
+      }
+
+      const applicationUrl = `${process.env.APPLY_FRONTEND_URL}/${organizationId}/jobs/${jobId}`;
+  
+      // Prepare context for OpenAI
+      const jobContext = `
+        Job Title: ${job.title}
+        Location: ${job.location}
+        Work Type: ${job.workType}
+        Employment Type: ${job.employmentType}
+        Key Skills: ${job.requiredSkills.join(', ')}
+        Description: ${job.description}
+        Application URL: ${applicationUrl}
+      `;
+  
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ 
+          role: "user", 
+          content: `Generate an engaging social media post for ${platform} to share a job opening. Here are the job details:
+          ${jobContext}
+          
+          Please create a post that:
+          1. Is attention-grabbing and professional
+          2. Highlights key benefits and requirements
+          3. Uses appropriate hashtags
+          4. Follows platform best practices
+          5. Is within the platform's character limits
+          ${platform === 'twitter' ? '(280 characters max)' : '(3000 characters max for LinkedIn)'}`
+        }],
+        functions: [{
+          name: "generateSocialPost",
+          parameters: {
+            type: "object",
+            properties: {
+              mainText: {
+                type: "string",
+                description: "The main body of the social media post"
+              },
+              hashtags: {
+                type: "array",
+                items: { type: "string" },
+                description: "Relevant hashtags for the post"
+              }
+            },
+            required: ["mainText", "hashtags"]
+          }
+        }],
+        function_call: { name: "generateSocialPost" }
+      });
+  
+      const functionCallResult = JSON.parse(response.choices[0].message.function_call.arguments);
+  
+      return {
+        success: true,
+        data: {
+          text: functionCallResult.mainText,
+          hashtags: functionCallResult.hashtags,
+          platform
+        }
+      };
+    } catch (error) {
+      console.error('Generate social share text error:', error);
+      return { 
+        success: false, 
+        error: 'Failed to generate social share text: ' + error.message 
+      };
+    }
+  },
   
   async generateJobDetails(description) {
     try {

@@ -96,6 +96,31 @@ async function getOrganizationJobs(req, res) {
     }
   }
 
+  async function generateSocialShare(req, res) {
+    try {
+      const { jobId } = req.params;
+      const { platform } = req.query;
+      const organizationId = req.user.organizationId;
+
+      if (!['linkedin', 'twitter','facebook'].includes(platform)) {
+        return res.status(400).json({ 
+          error: 'Invalid platform. Supported platforms: linkedin, twitter' 
+        });
+      }
+  
+      const result = await jobService.generateSocialShareText(jobId, organizationId, platform);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+  
+      res.json(result.data);
+    } catch (error) {
+      console.error('Generate social share error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+  
   async function generateJobDescription(req, res) {
     try {
       const {  description } = req.body;
@@ -114,4 +139,4 @@ async function getOrganizationJobs(req, res) {
       res.status(500).json({ error: error.message });
     }
   }
-  module.exports = { createJob, getOrganizationJobs ,getJob,getJobCVs,deleteJob,generateJobDescription};
+  module.exports = { createJob, getOrganizationJobs ,getJob,getJobCVs,deleteJob,generateJobDescription,generateSocialShare};
