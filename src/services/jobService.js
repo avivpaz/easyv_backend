@@ -304,10 +304,10 @@ const jobService = {
           Please create a post that:
           1. Is attention-grabbing and professional
           2. Highlights key benefits and requirements
-          3. Uses appropriate hashtags
-          4. Follows platform best practices
-          5. Is within the platform's character limits
-          ${platform === 'twitter' ? '(280 characters max)' : '(3000 characters max for LinkedIn)'}`
+          3. Follows platform best practices
+          4. Is within the platform's character limits
+          5. Add the the application url in the end
+          ${platform === 'twitter' ? '(280 characters max)' : '(2300 characters max for LinkedIn)'}`
         }],
         functions: [{
           name: "generateSocialPost",
@@ -317,14 +317,9 @@ const jobService = {
               mainText: {
                 type: "string",
                 description: "The main body of the social media post"
-              },
-              hashtags: {
-                type: "array",
-                items: { type: "string" },
-                description: "Relevant hashtags for the post"
               }
             },
-            required: ["mainText", "hashtags"]
+            required: ["mainText"]
           }
         }],
         function_call: { name: "generateSocialPost" }
@@ -336,7 +331,6 @@ const jobService = {
         success: true,
         data: {
           text: functionCallResult.mainText,
-          hashtags: functionCallResult.hashtags,
           platform
         }
       };
