@@ -307,7 +307,7 @@ const jobService = {
           3. Follows platform best practices
           4. Is within the platform's character limits
           5. Add the the application url in the end
-          ${platform === 'twitter' ? '(280 characters max)' : '(2300 characters max for LinkedIn)'}`
+          ${platform === 'twitter' ? '(250 characters max)' : '(2300 characters max for LinkedIn)'}`
         }],
         functions: [{
           name: "generateSocialPost",
