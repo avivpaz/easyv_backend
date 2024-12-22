@@ -32,7 +32,36 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
-
+  async updateJob(jobId, jobData, organizationId) {
+    try {
+      const job = await Job.findOneAndUpdate(
+        {
+          _id: jobId,
+          organization: organizationId,
+          status: { $ne: 'deleted' }
+        },
+        {
+          ...jobData,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+  
+      if (!job) {
+        return {
+          success: false,
+          error: 'Job not found or access denied'
+        };
+      }
+  
+      return {
+        success: true,
+        data: job
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
   async deleteJob(jobId, organizationId) {
     try {
       const job = await Job.findOneAndUpdate(

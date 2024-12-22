@@ -80,6 +80,33 @@ async function getOrganizationJobs(req, res) {
       res.status(500).json({ error: error.message });
     }
   }
+
+async function updateJob(req, res) {
+  try {
+    const { id: jobId } = req.params;
+    const jobData = {
+      title: req.body.title,
+      description: req.body.description,
+      location: req.body.location,
+      workType: req.body.workType,
+      employmentType: req.body.employmentType,
+      requiredSkills: req.body.requiredSkills,
+      niceToHaveSkills: req.body.niceToHaveSkills,
+      status: req.body.status || 'active'
+    };
+
+    const result = await jobService.updateJob(jobId, jobData, req.user.organizationId);
+    
+    if (!result.success) {
+      return res.status(404).json({ error: result.error });
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('Update job error:', error);
+    res.status(500).json({ error: 'Failed to update job' });
+  }
+}
   async function deleteJob(req, res) {
     try {
       const { id: jobId } = req.params;
@@ -139,4 +166,4 @@ async function getOrganizationJobs(req, res) {
       res.status(500).json({ error: error.message });
     }
   }
-  module.exports = { createJob, getOrganizationJobs ,getJob,getJobCVs,deleteJob,generateJobDescription,generateSocialShare};
+  module.exports = { createJob, getOrganizationJobs ,getJob,getJobCVs,deleteJob,generateJobDescription,generateSocialShare,  updateJob };
