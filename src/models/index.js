@@ -64,7 +64,8 @@ const cvSchema = new mongoose.Schema({
       company: String,
       position: String,
       dates: String,
-      responsibilities: [String]
+      responsibilities: [String],
+      isRelevant: { type: Boolean, default: false } 
     }],
     skills: [String]
   },

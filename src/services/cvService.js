@@ -77,6 +77,25 @@ async processCV(file, jobId, organizationId) {
       };
     }
 
+    const job = await Job.findOne({ 
+      _id: jobId,
+      organization: organizationId,
+      status: { $ne: 'deleted' }
+    }).select('title description location workType employmentType requiredSkills');
+
+    if (!job) {
+      return {
+        success: false,
+        error: 'Job not found or access denied',
+        fileName: file.originalname
+      };
+    }
+
+    const jobContext = `
+    Job Title: ${job.title}
+    Key Skills: ${job.requiredSkills.join(', ')}
+    Description: ${job.description}
+  `;
     // Upload file to S3
     const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,`${organizationId}/${jobId}`, process.env.AWS_BUCKET_NAME,process.env.CVS_CLOUDFRONT_DOMAIN);
     
@@ -84,7 +103,7 @@ async processCV(file, jobId, organizationId) {
     const text = await this.extractTextFromFile(file);
     
     // Process the extracted text
-    const cvResult = await this.extractCVInfo(text);
+    const cvResult = await this.extractCVInfo(text, jobContext);
 
     // Check if the text is actually a CV
     if (!cvResult.isCV) {
@@ -156,7 +175,7 @@ async processCVs(files, jobId, organizationId) {
   await Promise.all(processPromises);
   return results;
 },
-async extractCVInfo(text) {
+async extractCVInfo(text,jobContext) {
   try {
     // First, validate if it's a CV using GPT-4 with function calling
     const validationResponse = await openai.chat.completions.create({
@@ -199,8 +218,14 @@ async extractCVInfo(text) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: "Extract key information from this CV. If the CV is not in English, translate all information to English, including the name, in your response: " + text
-      }],
+        content: `Extract key information from this CV and analyze its relevance to the following job:
+        Job Information:
+        ${jobContext}
+
+        CV Text: ${text}
+
+        If the CV is not in English, translate all information to English, including the name, in your response.`
+              }],
       functions: [{
         name: "processCVData",
         parameters: {
@@ -222,7 +247,7 @@ async extractCVInfo(text) {
                   institution: { type: "string" },
                   year: { 
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2018-2022) or single year YYYY if ongoing"
+                    description: "Year range in format YYYY-YYYY (e.g. 202-2024) or single year YYYY if ongoing"
                   }                }
               }
             },
@@ -235,9 +260,13 @@ async extractCVInfo(text) {
                   position: { type: "string" },
                   dates: { 
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2020-2023) or YYYY-present if current position"
+                    description: "Year range in format YYYY-YYYY (e.g. 2022-2024) or YYYY-present if current position"
                   },
-                  responsibilities: { type: "array", items: { type: "string" } }
+                  responsibilities: { type: "array", items: { type: "string" } },
+                  isRelevant: {
+                    type: "boolean",
+                    description: "Whether this experience is relevant to the job position"
+                  }
                 }
               }
             },
@@ -308,15 +337,6 @@ async getAllCVs(organizationId, query = {}) {
 },
 async processPublicCV(file, jobId, formData) {
   try {
-    const job = await Job.findOne({
-      _id: jobId,
-      status: 'active'
-    }).populate('organization');
-
-    if (!job) {
-      return { success: false, error: 'Job not found or not active' };
-    }
-
     const organizationId = job.organization._id;
 
     // Split processing based on submission type
