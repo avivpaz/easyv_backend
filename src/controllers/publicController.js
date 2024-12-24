@@ -1,6 +1,7 @@
 const organizationService = require('../services/organizationService');
 const jobService=require('../services/jobService');
 const cvService=require('../services/cvService');
+const { CV,Job } = require('../models/index');
 
 const mongoose = require('mongoose');
 
@@ -85,12 +86,26 @@ async function getPublicOrganizationJobs(req, res) {
         }
       }
   
-      const result = await cvService.processPublicCV(
-        req.file, 
-        jobId,
-        req.body
-      );
-  
+      const job = await Job.findOne({ 
+        _id: jobId,
+        status: { $ne: 'deleted' }
+      }).select('title description location workType employmentType requiredSkills organization _id');
+      
+      if (!job) {
+        return {
+          success: false,
+          error: 'Job not found or access denied',
+          fileName: file.originalname
+        };
+      }
+      
+      let result;
+      if (submissionType === 'file') {
+        result = await cvService.processCV(req.file, job, job.organization);
+      } else {
+        result = await cvService.processTextSubmission(req.body, job, job.organization);
+      }
+
       if (!result.success) {
         return res.status(result.error === 'cv_duplication' ? 400 : 500)
           .json({ error: result.error });

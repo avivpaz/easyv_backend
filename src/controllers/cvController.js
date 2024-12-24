@@ -1,4 +1,5 @@
 const cvService = require('../services/cvService');
+const { CV,Job } = require('../models/index');
 
 async function handleCVUpload(req, res) {
   try {
@@ -6,9 +7,21 @@ async function handleCVUpload(req, res) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
+    const job = await Job.findOne({ 
+      _id: req.params.id,
+      status: { $ne: 'deleted' }
+    }).select('title description location workType employmentType requiredSkills _id');
+
+    if (!job) {
+      return {
+        success: false,
+        error: 'Job not found or access denied',
+        fileName: file.originalname
+      };
+    }
     const results = await cvService.processCVs(
       req.files,
-      req.params.id,
+      job,
       req.user.organizationId
     );
 

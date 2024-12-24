@@ -65,116 +65,6 @@ async extractTextFromFile(file) {
   }
 },
 
-async processCV(file, jobId, organizationId) {
-  try {
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      return { 
-        success: false, 
-        error: 'Invalid file type. Only PDF and DOC/DOCX files are supported.',
-        fileName: file.originalname 
-      };
-    }
-
-    const job = await Job.findOne({ 
-      _id: jobId,
-      organization: organizationId,
-      status: { $ne: 'deleted' }
-    }).select('title description location workType employmentType requiredSkills');
-
-    if (!job) {
-      return {
-        success: false,
-        error: 'Job not found or access denied',
-        fileName: file.originalname
-      };
-    }
-
-    const jobContext = `
-    Job Title: ${job.title}
-    Key Skills: ${job.requiredSkills.join(', ')}
-    Description: ${job.description}
-  `;
-    // Upload file to S3
-    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,`${organizationId}/${jobId}`, process.env.AWS_BUCKET_NAME,process.env.CVS_CLOUDFRONT_DOMAIN);
-    
-    // Extract text from file
-    const text = await this.extractTextFromFile(file);
-    
-    // Process the extracted text
-    const cvResult = await this.extractCVInfo(text, jobContext);
-
-    // Check if the text is actually a CV
-    if (!cvResult.isCV) {
-      // Delete the uploaded file since it's not a CV
-      const fileName = fileUrl.split('/').pop();
-      await deleteFromS3(fileName);
-      
-      return { 
-        success: false, 
-        error: `invalid_file`,
-        fileName: file.originalname 
-      };
-    }
-
-      // Check for existing application with same email for this job
-      const existingApplication = await CV.findOne({
-        'candidate.email': cvResult.data.email,
-        job: jobId
-      });
-  
-      if (existingApplication) {
-        // Delete the uploaded file since it's a duplicate application
-        const fileName = fileUrl.split('/').pop();
-        await deleteFromS3(fileName);
-  
-        return {
-          success: false,
-          error: 'cv_duplication',
-          fileName: file.originalname,
-          duplicate: true
-        };
-      }
-    
-    const cv = await CV.create({
-      candidate: cvResult.data,
-      job: jobId,
-      organization: organizationId,
-      fileUrl: fileUrl,
-      originalFileName: file.originalname,
-      fileType: file.mimetype,
-      submissionType: 'file', // Add this
-      status: 'pending'
-    });
-
-    return { success: true, data: cv };
-  } catch (error) {
-    return { success: false, error: error.message, fileName: file.originalname };
-  }
-},
-async processCVs(files, jobId, organizationId) {
-  const results = {
-    successful: [],
-    failed: []
-  };
-
-  // Process CVs concurrently with Promise.all
-  const processPromises = files.map(async (file) => {
-    const result = await this.processCV(file, jobId, organizationId);
-    if (result.success) {
-      results.successful.push(result.data);
-    } else {
-      results.failed.push({
-        fileName: result.fileName,
-        error: result.error
-      });
-    }
-  });
-
-  await Promise.all(processPromises);
-  return results;
-},
 async extractCVInfo(text,jobContext) {
   try {
     // First, validate if it's a CV using GPT-4 with function calling
@@ -335,26 +225,86 @@ async getAllCVs(organizationId, query = {}) {
     return { success: false, error: error.message };
   }
 },
-async processPublicCV(file, jobId, formData) {
+async processCV(file, job, organizationId) {
   try {
-    const organizationId = job.organization._id;
-
-    // Split processing based on submission type
-    if (formData.submissionType === 'file') {
-      return this.processCV(file, jobId, organizationId);
-    } else {
-      return this.processTextSubmission(formData, jobId, organizationId);
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return { 
+        success: false, 
+        error: 'Invalid file type. Only PDF and DOC/DOCX files are supported.',
+        fileName: file.originalname 
+      };
     }
+
+    const jobContext = `
+    Job Title: ${job.title}
+    Key Skills: ${job.requiredSkills.join(', ')}
+    Description: ${job.description}
+  `;
+    // Upload file to S3
+    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,`${organizationId}/${job._id}`, process.env.AWS_BUCKET_NAME,process.env.CVS_CLOUDFRONT_DOMAIN);
+    
+    // Extract text from file
+    const text = await this.extractTextFromFile(file);
+    
+    // Process the extracted text
+    const cvResult = await this.extractCVInfo(text, jobContext);
+
+    // Check if the text is actually a CV
+    if (!cvResult.isCV) {
+      // Delete the uploaded file since it's not a CV
+      const fileName = fileUrl.split('/').pop();
+      await deleteFromS3(fileName);
+      
+      return { 
+        success: false, 
+        error: `invalid_file`,
+        fileName: file.originalname 
+      };
+    }
+
+      // Check for existing application with same email for this job
+      const existingApplication = await CV.findOne({
+        'candidate.email': cvResult.data.email,
+        job: job._id
+      });
+  
+      if (existingApplication) {
+        // Delete the uploaded file since it's a duplicate application
+        const fileName = fileUrl.split('/').pop();
+        await deleteFromS3(fileName);
+  
+        return {
+          success: false,
+          error: 'cv_duplication',
+          fileName: file.originalname,
+          duplicate: true
+        };
+      }
+    
+    const cv = await CV.create({
+      candidate: cvResult.data,
+      job: job._id,
+      organization: organizationId,
+      fileUrl: fileUrl,
+      originalFileName: file.originalname,
+      fileType: file.mimetype,
+      submissionType: 'file', // Add this
+      status: 'pending'
+    });
+
+    return { success: true, data: cv };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, fileName: file.originalname };
   }
 },
-async processTextSubmission(formData, jobId, organizationId) {
+async processTextSubmission(formData, job, organizationId) {
   try {
     // Check for duplicate application
     const existingApplication = await CV.findOne({
       'candidate.email': formData.email,
-      job: jobId
+      job: job._id
     });
 
     if (existingApplication) {
@@ -369,7 +319,16 @@ async processTextSubmission(formData, jobId, organizationId) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: "Analyze the text and validate if it's suitable as a job application: " + formData.cvText
+        content: `Analyze this job application focusing ONLY on the content and professional substance. 
+        Ignore grammar, formatting, and structural issues completely.
+        Evaluate based on:
+        - Presence of relevant work experience
+        - Skills and qualifications
+        - Professional achievements
+        - Education background
+        - Career objectives (if included)
+        
+        Text to analyze: ${formData.cvText}`
       }],
       functions: [{
         name: "validateCV",
@@ -393,13 +352,14 @@ async processTextSubmission(formData, jobId, organizationId) {
 
     const validation = JSON.parse(validationResponse.choices[0].message.function_call.arguments);
     
-    if (!validation.isValid) {
-      return {
-        success: false,
-        error: 'invalid_submission',
-        message: validation.reason
-      };
-    }
+    //TODO Return this 
+    // if (!validation.isValid) {
+    //   return {
+    //     success: false,
+    //     error: 'invalid_submission',
+    //     message: validation.reason
+    //   };
+    // }
 
     // Process the text content using GPT-4
     const response = await openai.chat.completions.create({
@@ -442,7 +402,11 @@ async processTextSubmission(formData, jobId, organizationId) {
                     type: "string",
                     description: "Year range in format YYYY-YYYY (e.g. 2021-2024) or YYYY-present if current position"
                   },
-                  responsibilities: { type: "array", items: { type: "string" } }
+                  responsibilities: { type: "array", items: { type: "string" } },
+                  isRelevant: {
+                    type: "boolean",
+                    description: "Whether this experience is relevant to the job position"
+                  }
                 }
               }
             },
@@ -467,7 +431,7 @@ async processTextSubmission(formData, jobId, organizationId) {
         experience: extractedData.experience,
         skills: extractedData.skills
       },
-      job: jobId,
+      job: job._id,
       organization: organizationId,
       submissionType: 'text', 
       rawText: formData.cvText, 
@@ -478,6 +442,29 @@ async processTextSubmission(formData, jobId, organizationId) {
   } catch (error) {
     return { success: false, error: error.message };
   }
+},
+
+async processCVs(files, job, organizationId) {
+  const results = {
+    successful: [],
+    failed: []
+  };
+
+  // Process CVs concurrently with Promise.all
+  const processPromises = files.map(async (file) => {
+    const result = await this.processCV(file, job, organizationId);
+    if (result.success) {
+      results.successful.push(result.data);
+    } else {
+      results.failed.push({
+        fileName: result.fileName,
+        error: result.error
+      });
+    }
+  });
+
+  await Promise.all(processPromises);
+  return results;
 }
 
 
