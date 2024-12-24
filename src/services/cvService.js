@@ -266,7 +266,7 @@ async processCV(file, job, organizationId) {
 
       // Check for existing application with same email for this job
       const existingApplication = await CV.findOne({
-        'candidate.email': cvResult.data.email,
+        'candidate.email': cvResult.data.email.toLowerCase(),
         job: job._id
       });
   
@@ -303,7 +303,7 @@ async processTextSubmission(formData, job, organizationId) {
   try {
     // Check for duplicate application
     const existingApplication = await CV.findOne({
-      'candidate.email': formData.email,
+      'candidate.email': formData.email.toLowerCase(),
       job: job._id
     });
 
