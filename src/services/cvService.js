@@ -108,37 +108,56 @@ async extractCVInfo(text,jobContext) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: `Extract key information from this CV and analyze its relevance to the following job:
+        content: `Extract and format key information from this CV and analyze its relevance to the job:
         Job Information:
         ${jobContext}
-
+    
         CV Text: ${text}
-
-        If the CV is not in English, translate all information to English, including the name, in your response.`
-              }],
+    
+        Apply consistent formatting:
+        - Names in Title Case
+        - Bullet points start with capital letter
+        - Technical terms with proper capitalization
+        - Dates in YYYY-YYYY format
+        
+        If non-English, translate to English with same formatting rules.`
+      }],
       functions: [{
         name: "processCVData",
         parameters: {
           type: "object",
           properties: {
-            fullName: { type: "string" },
-            email: { type: "string" },
-            phone: { type: "string" },
-            summary: { 
+            fullName: { 
               type: "string",
-              description: "Create a new 2-3 sentence summary with: number of years of experience, most recant role, specialties, and major achievements. Example: 'Senior Software Engineer with 8 years in cloud/DevOps. Leads 12-person AWS team, achieved 60% faster deployments and $2M savings. Expert in Python and high-availability systems.'",
+              description: "Full name in Title Case (e.g., 'John Smith')"
+            },
+            email: { type: "string" },
+            phone: { 
+              type: "string",
+              description: "Phone number in international format with country code (e.g., '+1-123-456-7890' or '+44 20 7123 4567')"
+            },
+            summary: {
+              type: "string",
+              description: "2-3 sentence professional summary in proper sentence case"
             },
             education: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  degree: { type: "string" },
-                  institution: { type: "string" },
-                  year: { 
+                  degree: {
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 202-2024) or single year YYYY if ongoing"
-                  }                }
+                    description: "Degree in Title Case (e.g., 'Bachelor of Science in Computer Science')"
+                  },
+                  institution: {
+                    type: "string",
+                    description: "Institution name in Title Case"
+                  },
+                  year: {
+                    type: "string",
+                    description: "Year range as YYYY-YYYY or YYYY if ongoing"
+                  }
+                }
               }
             },
             experience: {
@@ -146,43 +165,59 @@ async extractCVInfo(text,jobContext) {
               items: {
                 type: "object",
                 properties: {
-                  company: { type: "string" },
-                  position: { type: "string" },
-                  dates: { 
+                  company: {
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2022-2024) or YYYY-present if current position"
+                    description: "Company name in Title Case"
                   },
-                  responsibilities: { type: "array", items: { type: "string" } },
+                  position: {
+                    type: "string",
+                    description: "Position title in Title Case"
+                  },
+                  dates: {
+                    type: "string",
+                    description: "Date range as YYYY-YYYY or YYYY-present"
+                  },
+                  responsibilities: {
+                    type: "array",
+                    items: {
+                      type: "string",
+                      description: "Responsibility in sentence case, starting with action verb"
+                    }
+                  },
                   isRelevant: {
                     type: "boolean",
                     description: "Whether this experience is relevant to the job position"
-                  }
+                  }          
                 }
               }
             },
-            skills: { type: "array", items: { type: "string" } },
+            skills: {
+              type: "array",
+              items: {
+                type: "string",
+                description: "Skills with proper capitalization (e.g., 'JavaScript', 'project management')"
+              }
+            },
             languages: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  name: { 
+                  name: {
                     type: "string",
-                    description: "Name of the language"
+                    description: "Language name in Title Case"
                   },
-                  proficiency: { 
+                  proficiency: {
                     type: "string",
-                    enum: ["Native", "Fluent", "Advanced", "Intermediate", "Basic"],
-                    description: "Proficiency level in the language"
+                    enum: ["Native", "Fluent", "Advanced", "Intermediate", "Basic"]
                   }
                 },
                 required: ["name", "proficiency"]
-              },
-              description: "List of languages the candidate knows with proficiency levels"
+              }
             },
-            originalLanguage: { type: "string", description: "The original language of the CV" }
+            originalLanguage: { type: "string" }
           },
-          required: ["fullName", "email", "phone","summary", "education", "experience", "skills", "languages","originalLanguage"]
+          required: ["fullName", "email", "phone", "summary", "education", "experience", "skills", "languages", "originalLanguage"]
         }
       }],
       function_call: { name: "processCVData" }
@@ -395,27 +430,39 @@ async processTextSubmission(formData, job, organizationId) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: "Extract professional experience, education, skills and summary from this text. Format all date ranges as year-year (e.g. 2020-2023): " + formData.cvText
+        content: `Extract and format professional information from this text. Apply consistent formatting:
+        - Names and titles in Title Case
+        - Summaries and descriptions in proper sentence case
+        - Technical terms with proper capitalization
+        - Dates in YYYY-YYYY format
+        
+        Text to process: ${formData.cvText}`
       }],
       functions: [{
         name: "processApplicationText",
         parameters: {
-          type: "object",
+          type: "object", 
           properties: {
-            summary: { 
+            summary: {
               type: "string",
-              description: "A concise professional summary of the candidate highlighting their key qualifications and experience. make it short, 2-3 sentences"
+              description: "2-3 sentence professional summary in proper sentence case"
             },
             education: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  degree: { type: "string" },
-                  institution: { type: "string" },
-                  year: { 
+                  degree: {
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2018-2022) or single year YYYY if ongoing"
+                    description: "Degree in Title Case"
+                  },
+                  institution: {
+                    type: "string",
+                    description: "Institution name in Title Case"
+                  },
+                  year: {
+                    type: "string",
+                    description: "Year range as YYYY-YYYY or YYYY if ongoing"
                   }
                 }
               }
@@ -425,23 +472,41 @@ async processTextSubmission(formData, job, organizationId) {
               items: {
                 type: "object",
                 properties: {
-                  company: { type: "string" },
-                  position: { type: "string" },
-                  dates: { 
+                  company: {
                     type: "string",
-                    description: "Year range in format YYYY-YYYY (e.g. 2021-2024) or YYYY-present if current position"
+                    description: "Company name in Title Case"
                   },
-                  responsibilities: { type: "array", items: { type: "string" } },
+                  position: {
+                    type: "string",
+                    description: "Position title in Title Case"
+                  },
+                  dates: {
+                    type: "string",
+                    description: "Date range as YYYY-YYYY or YYYY-present"
+                  },
+                  responsibilities: {
+                    type: "array",
+                    items: {
+                      type: "string",
+                      description: "Responsibility in sentence case, starting with action verb"
+                    }
+                  },
                   isRelevant: {
                     type: "boolean",
                     description: "Whether this experience is relevant to the job position"
-                  }
+                  }                         
                 }
               }
             },
-            skills: { type: "array", items: { type: "string" } }
+            skills: {
+              type: "array",
+              items: {
+                type: "string",
+                description: "Skills with proper capitalization (e.g., 'JavaScript', 'project management')"
+              }
+            }
           },
-          required: ["education", "experience", "skills","summary"]
+          required: ["summary", "education", "experience", "skills"]
         }
       }],
       function_call: { name: "processApplicationText" }
