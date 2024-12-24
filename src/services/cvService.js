@@ -241,62 +241,91 @@ async processCV(file, job, organizationId) {
     Job Title: ${job.title}
     Key Skills: ${job.requiredSkills.join(', ')}
     Description: ${job.description}
-  `;
-    // Upload file to S3
-    const fileUrl = await uploadToS3(file.buffer, `${Date.now()}-${file.originalname}`,`${organizationId}/${job._id}`, process.env.AWS_BUCKET_NAME,process.env.CVS_CLOUDFRONT_DOMAIN);
-    
+    `;
+
     // Extract text from file
     const text = await this.extractTextFromFile(file);
     
     // Process the extracted text
     const cvResult = await this.extractCVInfo(text, jobContext);
-
+    
     // Check if the text is actually a CV
-    if (!cvResult.isCV) {
-      // Delete the uploaded file since it's not a CV
-      const fileName = fileUrl.split('/').pop();
-      await deleteFromS3(fileName);
-      
+    if (!cvResult.isCV) {      
       return { 
         success: false, 
-        error: `invalid_file`,
+        error: 'invalid_file',
         fileName: file.originalname 
       };
     }
 
-      // Check for existing application with same email for this job
-      const existingApplication = await CV.findOne({
-        'candidate.email': cvResult.data.email.toLowerCase(),
-        job: job._id
-      });
-  
-      if (existingApplication) {
-        // Delete the uploaded file since it's a duplicate application
-        const fileName = fileUrl.split('/').pop();
-        await deleteFromS3(fileName);
-  
-        return {
-          success: false,
-          error: 'cv_duplication',
-          fileName: file.originalname,
-          duplicate: true
-        };
-      }
-    
+    // Check for existing application with same email for this job
+    const existingApplication = await CV.findOne({
+      'candidate.email': cvResult.data.email.toLowerCase(),
+      job: job._id
+    });
+
+    if (existingApplication) {
+      return {
+        success: false,
+        error: 'cv_duplication',
+        fileName: file.originalname,
+        duplicate: true
+      };
+    }
+
+    // Create safe filename using the correct field name (fullName)
+    const fileExtension = file.originalname.split('.').pop().toLowerCase();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const candidateName = cvResult.data.fullName
+      ? cvResult.data.fullName
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '-') // Replace special chars with hyphens
+          .replace(/-+/g, '-')        // Replace multiple hyphens with single
+          .replace(/^-|-$/g, '')      // Remove leading/trailing hyphens
+      : 'unnamed-candidate';
+    const safeFileName = `${candidateName}-${timestamp}.${fileExtension}`;
+
+    // Create the complete S3 path
+    const s3Path = `${organizationId}/${job._id}/${safeFileName}`;
+
+    // Upload file to S3
+    const fileUrl = await uploadToS3(
+      file.buffer,           // file
+      safeFileName,          // fileName
+      `${organizationId}/${job._id}`, // folder
+      process.env.AWS_BUCKET_NAME,     // bucket
+      process.env.CVS_CLOUDFRONT_DOMAIN // cloudfront
+    );
+
     const cv = await CV.create({
       candidate: cvResult.data,
       job: job._id,
       organization: organizationId,
       fileUrl: fileUrl,
       originalFileName: file.originalname,
+      safeFileName: safeFileName,
+      s3Path: s3Path,       // Store the full S3 path for deletion
       fileType: file.mimetype,
-      submissionType: 'file', // Add this
+      submissionType: 'file',
       status: 'pending'
     });
 
     return { success: true, data: cv };
   } catch (error) {
-    return { success: false, error: error.message, fileName: file.originalname };
+    // If there's an error and we've created the s3Path, try to delete the file
+    if (typeof s3Path !== 'undefined') {
+      try {
+        await deleteFromS3(s3Path);
+      } catch (deleteError) {
+        console.error('Failed to delete S3 file after error:', deleteError);
+      }
+    }
+    
+    return { 
+      success: false, 
+      error: error.message, 
+      fileName: file.originalname 
+    };
   }
 },
 async processTextSubmission(formData, job, organizationId) {

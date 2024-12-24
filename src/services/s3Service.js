@@ -9,10 +9,12 @@ const s3Client = new S3Client({
   }
 });
 
-const deleteFromS3 = async (fileName,bucket= process.env.AWS_BUCKET_NAME) => {
+const deleteFromS3 = async (    path,
+  bucket = process.env.AWS_BUCKET_NAME
+  ) => {
     const params = {
       Bucket: bucket,
-      Key: `cvs/${fileName}`
+      Key: path
     };
   
     try {
