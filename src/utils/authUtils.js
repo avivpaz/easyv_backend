@@ -1,5 +1,6 @@
 // authUtils.js or similar file
 const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 
 const generateTokens = (user) => {
   // Access token - short lived
