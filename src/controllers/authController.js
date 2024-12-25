@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+const { generateTokens, refreshAccessToken } = require('../utils/authUtils');
 async function createUser(req, res) {
     try {
       console.log('Creating user with data:', req.body);
@@ -12,7 +13,15 @@ async function createUser(req, res) {
       res.status(500).json({ error: error.message });
     }
   }
-  
+  async function refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+      const newAccessToken = await refreshAccessToken(refreshToken);
+      res.json({ accessToken: newAccessToken });
+    } catch (error) {
+      res.status(401).json({ error: 'Invalid refresh token' });
+    }
+  };
   async function googleAuth(req, res) {
     try {
       const { token } = req.body;
@@ -54,4 +63,4 @@ async function login(req, res) {
   }
 }
 
-module.exports = { login,createUser,googleAuth };
+module.exports = { login,createUser,googleAuth,refreshToken };
