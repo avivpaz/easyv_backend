@@ -93,7 +93,7 @@ const jobService = {
 
   async getOrganizationJobs(organizationId, query = {}) {
     try {
-      const { page = 1, limit = 10, status } = query;
+      const { page = 1, limit = 10, status, search } = query;
       const skip = (page - 1) * limit;
    
       // Build filter
@@ -104,6 +104,11 @@ const jobService = {
       
       if (status) {
         filter.status = status;
+      }
+  
+      // Add title-only search functionality
+      if (search) {
+        filter.title = new RegExp(search, 'i');
       }
    
       // Get jobs with pagination
@@ -131,7 +136,7 @@ const jobService = {
     } catch (error) {
       return { success: false, error: error.message };
     }
-   },
+  },
 
   async  getPublicOrganizationJobs(organizationId, query = {}) {
     try {

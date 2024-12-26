@@ -22,15 +22,16 @@ async function createUser(req, res) {
       res.status(401).json({ error: 'Invalid refresh token' });
     }
   };
-  async function googleAuth(req, res) {
+
+  async function googleCallback(req, res) {
     try {
-      const { token } = req.body;
+      const { code } = req.body;
       
-      if (!token) {
-        return res.status(400).json({ error: 'Google token is required' });
+      if (!code) {
+        return res.status(400).json({ error: 'Authorization code is required' });
       }
   
-      const result = await authService.googleAuth(token);
+      const result = await authService.googleCallback(code);
       
       if (!result.success) {
         return res.status(401).json({ error: result.error });
@@ -38,10 +39,12 @@ async function createUser(req, res) {
   
       res.json(result.data);
     } catch (error) {
-      console.error('Google auth error:', error);
+      console.error('Google callback error:', error);
       res.status(500).json({ error: error.message });
     }
   }
+  
+ 
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -63,4 +66,4 @@ async function login(req, res) {
   }
 }
 
-module.exports = { login,createUser,googleAuth,refreshToken };
+module.exports = { login,createUser,googleCallback,refreshToken };

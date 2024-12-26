@@ -2,9 +2,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Organization } = require('../models');
-const { OAuth2Client } = require('google-auth-library');
 const billingService = require('./billingService');
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const { OAuth2Client } = require('google-auth-library');
 const { generateTokens, refreshAccessToken } = require('../utils/authUtils');
 
 const authService = {
@@ -140,101 +139,107 @@ const authService = {
   },
 
   
-async googleAuth(token) {
-  try {
-    const ticket = await googleClient.getTokenInfo(token);
+  async googleCallback(code) {
+    try {
+      // Create OAuth2 client
+      const oAuth2Client = new OAuth2Client(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URL
+          );
   
-    if (ticket.aud !== process.env.GOOGLE_CLIENT_ID) {
-      return { success: false, error: 'Invalid token audience' };
-    }
-
-    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!userInfoResponse.ok) {
-      throw new Error('Failed to get user info from Google');
-    }
-
-    const userData = await userInfoResponse.json();
-    const { sub: googleId, email, name } = userData;
-
-    let user = await User.findOne({ 
-      $or: [
-        { email: email },
-        { googleId: googleId }
-      ]
-    }).populate('organization');
-
-    if (user) {
-      if (!user.googleId) {
-        user.googleId = googleId;
-        user.authProvider = 'google';
-        await user.save();
+      // Exchange code for tokens
+    const { tokens } = await oAuth2Client.getToken(code);
+      
+      // Get user info using the access token
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { 'Authorization': `Bearer ${tokens.access_token}` }
+      });
+  
+      if (!userInfoResponse.ok) {
+        throw new Error('Failed to get user info from Google');
       }
-    } else {
-      const organization = await Organization.create({
-        name: `My Company`,
-        needsSetup: true
-      });
-
-      await billingService.addCreditsManually(
-        organization._id,
-        10,
-        null,
-        'Initial Google signup bonus credits'
-      );
-
-      user = await User.create({
-        email,
-        fullName: name,
-        googleId,
-        authProvider: 'google',
-        organization: organization._id,
-        role: 'admin'
-      });
-
-      user = await User.findById(user._id).populate('organization');
-    }
-
-    const { credits } = await billingService.getCreditsBalance(user.organization._id);
-
-    // Generate tokens using authUtils
-    const { accessToken, refreshToken } = generateTokens(user);
-
-    // Store refresh token in user document
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    return {
-      success: true,
-      data: {
-        accessToken,
-        refreshToken,
-        user: {
-          email: user.email,
-          role: user.role,
-          fullName: user.fullName
-        },
-        organization: {
-          id: user.organization._id,
-          name: user.organization.name,
-          credits: credits,
-          customerId: user.organization.customerId || null,
-          description: user.organization.description || '',
-          website: user.organization.website || '',
-          linkedinUrl: user.organization.linkedinUrl || '',
-          logoUrl: user.organization.logoUrl || '',
-          brandColor: user.organization.brandColor || '',
-          needsSetup: !user.organization.description && !user.organization.logoUrl
+  
+      const userData = await userInfoResponse.json();
+      const { sub: googleId, email, name } = userData;
+  
+      // Rest of your existing user creation/update logic
+      let user = await User.findOne({ 
+        $or: [
+          { email: email },
+          { googleId: googleId }
+        ]
+      }).populate('organization');
+  
+      if (user) {
+        if (!user.googleId) {
+          user.googleId = googleId;
+          user.authProvider = 'google';
+          await user.save();
         }
+      } else {
+        const organization = await Organization.create({
+          name: `My Company`,
+          needsSetup: true
+        });
+  
+        await billingService.addCreditsManually(
+          organization._id,
+          10,
+          null,
+          'Initial Google signup bonus credits'
+        );
+  
+        user = await User.create({
+          email,
+          fullName: name,
+          googleId,
+          authProvider: 'google',
+          organization: organization._id,
+          role: 'admin'
+        });
+  
+        user = await User.findById(user._id).populate('organization');
       }
-    };
-  } catch (error) {
-    console.error('Google auth error:', error);
-    return { success: false, error: 'Failed to authenticate with Google' };
+  
+      const { credits } = await billingService.getCreditsBalance(user.organization._id);
+  
+      // Generate tokens using authUtils
+      const { accessToken, refreshToken } = generateTokens(user);
+  
+      // Store refresh token in user document
+      user.refreshToken = refreshToken;
+      await user.save();
+  
+      return {
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName
+          },
+          organization: {
+            id: user.organization._id,
+            name: user.organization.name,
+            credits: credits,
+            customerId: user.organization.customerId || null,
+            description: user.organization.description || '',
+            website: user.organization.website || '',
+            linkedinUrl: user.organization.linkedinUrl || '',
+            logoUrl: user.organization.logoUrl || '',
+            brandColor: user.organization.brandColor || '',
+            needsSetup: !user.organization.description && !user.organization.logoUrl
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Google callback error:', error);
+      return { success: false, error: 'Failed to authenticate with Google' };
+    }
   }
-}
 };
 
 module.exports = authService;
