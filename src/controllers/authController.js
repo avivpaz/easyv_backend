@@ -44,7 +44,26 @@ async function createUser(req, res) {
     }
   }
   
- 
+  async function googleAuth(req, res) {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ error: 'Google token is required' });
+      }
+  
+      const result = await authService.googleAuth(token);
+      
+      if (!result.success) {
+        return res.status(401).json({ error: result.error });
+      }
+  
+      res.json(result.data);
+    } catch (error) {
+      console.error('Google auth error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -66,4 +85,4 @@ async function login(req, res) {
   }
 }
 
-module.exports = { login,createUser,googleCallback,refreshToken };
+module.exports = { login,createUser,googleCallback,googleAuth,refreshToken };
