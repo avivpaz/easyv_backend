@@ -302,23 +302,26 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
-  async generateSocialShareText(jobId, organizationId, platform = 'twitter') {
+  async generateSocialShareText(jobId, organizationId) {
     try {
-      // Get the job details first
+      // Get the job details with organization populated
       const job = await Job.findOne({ 
         _id: jobId,
         organization: organizationId,
         status: { $ne: 'deleted' }
-      }).select('title description location workType employmentType requiredSkills');
-
+      })
+      .populate('organization', 'name description')
+      .select('title description location workType employmentType requiredSkills organization');
+  
       if (!job) {
         return { success: false, error: 'Job not found' };
       }
-
+  
       const applicationUrl = `${process.env.APPLY_FRONTEND_URL}/${organizationId}/jobs/${jobId}`;
   
-      // Prepare context for OpenAI
       const jobContext = `
+        Company Name: ${job.organization.name}
+        Company Description: ${job.organization.description || 'N/A'}
         Job Title: ${job.title}
         Location: ${job.location}
         Work Type: ${job.workType}
@@ -329,43 +332,81 @@ const jobService = {
       `;
   
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [{ 
           role: "user", 
-          content: `Generate an engaging social media post for ${platform} to share a job opening. Here are the job details:
+          content: `Generate social media posts for a job opening for Twitter, LinkedIn, and Facebook.
+  
+          Here are the company and job details:
           ${jobContext}
-          
-          Please create a post that:
-          1. Is attention-grabbing and professional
-          2. Highlights key benefits and requirements
-          3. Follows platform best practices
-          4. Is within the platform's character limits
-          5. Add the the application url in the end
-          ${platform === 'twitter' ? '(250 characters max)' : '(2300 characters max for LinkedIn)'}`
+  
+          Please create three different posts following these requirements:
+  
+          1. Twitter Post (250 characters max):
+          - Start with company name
+          - Short and impactful
+          - Include relevant hashtags
+          - Focus on the most attractive aspects
+          - End with the application URL
+  
+          2. LinkedIn Post (1000 characters max):
+          - Start with company introduction
+          - Professional and detailed
+          - Include information about role and company culture
+          - Use proper formatting with line breaks
+          - Highlight growth opportunities
+          - Include relevant hashtags
+          - End with the application URL
+  
+          3. Facebook Post (1000 characters max):
+          - Start with company introduction
+          - Conversational yet professional
+          - Focus on company culture and benefits
+          - Make it engaging and shareable
+          - Include relevant hashtags
+          - End with the application URL`
         }],
         functions: [{
-          name: "generateSocialPost",
+          name: "generateSocialPosts",
           parameters: {
             type: "object",
             properties: {
-              mainText: {
+              twitter: {
                 type: "string",
-                description: "The main body of the social media post"
+                description: "Twitter post text (max 250 characters)"
+              },
+              linkedin: {
+                type: "string",
+                description: "LinkedIn post text (max 2300 characters)"
+              },
+              facebook: {
+                type: "string",
+                description: "Facebook post text (max 600 characters)"
               }
             },
-            required: ["mainText"]
+            required: ["twitter", "linkedin", "facebook"]
           }
         }],
-        function_call: { name: "generateSocialPost" }
+        function_call: { name: "generateSocialPosts" }
       });
   
-      const functionCallResult = JSON.parse(response.choices[0].message.function_call.arguments);
+      const { twitter, linkedin, facebook } = JSON.parse(
+        response.choices[0].message.function_call.arguments
+      );
   
       return {
         success: true,
         data: {
-          text: functionCallResult.mainText,
-          platform
+          posts: [
+            { platform: 'twitter', text: twitter },
+            { platform: 'linkedin', text: linkedin },
+            { platform: 'facebook', text: facebook }
+          ],
+          applicationUrl,
+          organization: {
+            name: job.organization.name,
+            description: job.organization.description
+          }
         }
       };
     } catch (error) {

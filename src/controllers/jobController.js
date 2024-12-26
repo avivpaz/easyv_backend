@@ -126,16 +126,9 @@ async function updateJob(req, res) {
   async function generateSocialShare(req, res) {
     try {
       const { jobId } = req.params;
-      const { platform } = req.query;
       const organizationId = req.user.organizationId;
-
-      if (!['linkedin', 'twitter','facebook'].includes(platform)) {
-        return res.status(400).json({ 
-          error: 'Invalid platform. Supported platforms: linkedin, twitter' 
-        });
-      }
   
-      const result = await jobService.generateSocialShareText(jobId, organizationId, platform);
+      const result = await jobService.generateSocialShareText(jobId, organizationId);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error });
