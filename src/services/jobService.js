@@ -235,29 +235,30 @@ const jobService = {
         _id: jobId,
         organization: organizationId
       });
-
+  
       if (!job) {
         return { success: false, error: 'Job not found or access denied' };
       }
-
+  
       // Get all CVs for the job
       const cvs = await CV.find({
         job: jobId,
         organization: organizationId
       }).sort({ createdAt: -1 });
-
+  
       // Process each CV based on unlock status
       const processedCVs = cvs.map(cv => {
         const isUnlocked = cv.visibility === 'unlocked';
-
+  
         if (isUnlocked) {
           // Return full CV details if unlocked
           return {
             _id: cv._id,
             candidate: cv.candidate,
+            ranking: cv.ranking, // Include full ranking for unlocked CVs
             status: cv.status,
             fileUrl: cv.fileUrl,
-            rawText:cv.rawText,
+            rawText: cv.rawText,
             submissionType: cv.submissionType,
             createdAt: cv.createdAt,
             visibility: 'unlocked'
@@ -267,6 +268,10 @@ const jobService = {
           return {
             _id: cv._id,
             status: cv.status,
+            ranking: {  // Include ranking even for locked CVs
+              category: cv.ranking.category,
+              justification: cv.ranking.justification
+            },
             candidate: {
               // Only return basic candidate info
               fullName: maskFullName(cv.candidate.fullName),
@@ -280,13 +285,20 @@ const jobService = {
           };
         }
       });
-
+  
       // Group CVs by visibility status
       const groupedCVs = {
         unlocked: processedCVs.filter(cv => cv.visibility === 'unlocked'),
         locked: processedCVs.filter(cv => cv.visibility === 'locked')
       };
-
+  
+      // Add stats breakdown by ranking
+      const rankingStats = {
+        highlyRelevant: cvs.filter(cv => cv.ranking?.category === 'Highly Relevant').length,
+        relevant: cvs.filter(cv => cv.ranking?.category === 'Relevant').length,
+        notRelevant: cvs.filter(cv => cv.ranking?.category === 'Not Relevant').length
+      };
+  
       return {
         success: true,
         data: {
@@ -294,7 +306,8 @@ const jobService = {
           stats: {
             total: cvs.length,
             unlocked: groupedCVs.unlocked.length,
-            locked: groupedCVs.locked.length
+            locked: groupedCVs.locked.length,
+            byRanking: rankingStats
           }
         }
       };

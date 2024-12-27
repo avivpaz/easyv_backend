@@ -50,6 +50,7 @@ const jobSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+
 const cvSchema = new mongoose.Schema({
   candidate: {
     fullName: String,
@@ -70,11 +71,22 @@ const cvSchema = new mongoose.Schema({
     }],
     skills: [String]
   },
+  ranking: {
+    category: {
+      type: String,
+      enum: ['Highly Relevant', 'Relevant', 'Not Relevant'],
+      default: 'Not Relevant'
+    },
+    justification: {
+      type: String,
+      required: true
+    }
+  },
   job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   fileUrl: { type: String, required: false },
   submissionType: { type: String, enum: ['file', 'text'], required: true },
-  rawText: { type: String }, // Added field for storing raw CV text
+  rawText: { type: String },
   status: { type: String, enum: ['pending', 'reviewed', 'rejected'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },
   visibility: {

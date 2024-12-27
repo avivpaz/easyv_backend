@@ -120,7 +120,9 @@ async extractCVInfo(text,jobContext) {
         - Technical terms with proper capitalization
         - Dates in YYYY-YYYY format
         
-        If non-English, translate to English with same formatting rules.`
+        If non-English, translate to English with same formatting rules.
+        
+        Analyze the candidate's overall fit for the role based on their experience, skills, and education.`
       }],
       functions: [{
         name: "processCVData",
@@ -131,7 +133,10 @@ async extractCVInfo(text,jobContext) {
               type: "string",
               description: "Full name in Title Case (e.g., 'John Smith')"
             },
-            email: { type: "string" },
+            email: { 
+              type: "string",
+              description: "Email address in lowercase format (e.g., 'john.smith@example.com')"
+            },
             phone: { 
               type: "string",
               description: "Phone number in international format with country code (e.g., '+1-123-456-7890' or '+44 20 7123 4567')"
@@ -215,13 +220,29 @@ async extractCVInfo(text,jobContext) {
                 required: ["name", "proficiency"]
               }
             },
-            originalLanguage: { type: "string" }
+            originalLanguage: { type: "string" },
+            ranking: {
+              type: "object",
+              properties: {
+                category: {
+                  type: "string",
+                  enum: ["Highly Relevant", "Relevant", "Not Relevant"],
+                  description: "Overall ranking of candidate fit for the position"
+                },
+                justification: {
+                  type: "string", 
+                  description: "2-3 sentence explanation of the ranking based on experience, skills, and qualifications match. Use ONLY on professional qualifications without personal information like name"
+                }
+              },
+              required: ["category", "justification"]
+            }
           },
-          required: ["fullName", "email", "phone", "summary", "education", "experience", "skills", "languages", "originalLanguage"]
+          required: ["fullName", "email", "phone", "summary", "education", "experience", "skills", "languages", "originalLanguage", "ranking"]
         }
       }],
       function_call: { name: "processCVData" }
     });
+    
 
     return {
       isCV: true,
@@ -334,6 +355,10 @@ async processCV(file, job, organizationId) {
 
     const cv = await CV.create({
       candidate: cvResult.data,
+      ranking: {
+        category: cvResult.data.ranking.category,
+        justification: cvResult.data.ranking.justification
+      },
       job: job._id,
       organization: organizationId,
       fileUrl: fileUrl,
@@ -383,14 +408,17 @@ async processTextSubmission(formData, job, organizationId) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: `Analyze this job application focusing ONLY on the content and professional substance. 
+        content: `Analyze this job application submission to:
+        1. Determine if it's a valid professional document
+        2. Identify the type of document (CV, resume, cover letter, etc.)
+        3. Verify presence of key components:
+           - Professional experience
+           - Skills and qualifications
+           - Education background
+           - Contact information
+        
+        Focus ONLY on content and professional substance.
         Ignore grammar, formatting, and structural issues completely.
-        Evaluate based on:
-        - Presence of relevant work experience
-        - Skills and qualifications
-        - Professional achievements
-        - Education background
-        - Career objectives (if included)
         
         Text to analyze: ${formData.cvText}`
       }],
@@ -406,9 +434,29 @@ async processTextSubmission(formData, job, organizationId) {
             reason: { 
               type: "string",
               description: "Explanation of validation result"
+            },
+            type: {
+              type: "string",
+              enum: ["cv", "resume", "cover_letter", "personal_statement", "other"],
+              description: "The type of document detected in the submission"
+            },
+            confidence: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Confidence score for the document type classification (0-1)"
+            },
+            details: {
+              type: "object",
+              properties: {
+                hasWorkExperience: { type: "boolean" },
+                hasEducation: { type: "boolean" },
+                hasSkills: { type: "boolean" },
+                hasContactInfo: { type: "boolean" }
+              }
             }
           },
-          required: ["isValid", "reason", "type"]
+          required: ["isValid", "reason", "type", "confidence"]
         }
       }],
       function_call: { name: "validateCV" }
@@ -430,11 +478,18 @@ async processTextSubmission(formData, job, organizationId) {
       model: "gpt-4o",
       messages: [{
         role: "user",
-        content: `Extract and format professional information from this text. Apply consistent formatting:
+        content: `Extract and format professional information from this text, and analyze its relevance to the job position:
+    
+        Job Information:
+        ${job.description}
+        
+        Apply consistent formatting:
         - Names and titles in Title Case
         - Summaries and descriptions in proper sentence case
         - Technical terms with proper capitalization
         - Dates in YYYY-YYYY format
+        
+        Analyze the candidate's overall fit for the role based on their experience, skills, and education.
         
         Text to process: ${formData.cvText}`
       }],
@@ -504,26 +559,46 @@ async processTextSubmission(formData, job, organizationId) {
                 type: "string",
                 description: "Skills with proper capitalization (e.g., 'JavaScript', 'project management')"
               }
+            },
+            ranking: {
+              type: "object",
+              properties: {
+                category: {
+                  type: "string",
+                  enum: ["Highly Relevant", "Relevant", "Not Relevant"],
+                  description: "Overall ranking of candidate fit for the position"
+                },
+                justification: {
+                  type: "string",
+                  description: "2-3 sentence explanation of the ranking based on experience, skills, and qualifications match. Use ONLY on professional qualifications without personal information like name"
+                }
+              },
+              required: ["category", "justification"]
             }
           },
-          required: ["summary", "education", "experience", "skills"]
+          required: ["summary", "education", "experience", "skills", "ranking"]
         }
       }],
       function_call: { name: "processApplicationText" }
     });
     
     const extractedData = JSON.parse(response.choices[0].message.function_call.arguments);
-
+    
+    email=formData.email.toLowerCase()
     // Create CV record with form data and extracted information
     const cv = await CV.create({
       candidate: {
         fullName: formData.fullName,
-        email: formData.email,
+        email: email,
         phone: formData.phoneNumber,
-        summary:extractedData.summary,
+        summary: extractedData.summary,
         education: extractedData.education,
         experience: extractedData.experience,
         skills: extractedData.skills
+      },
+      ranking: {
+        category: extractedData.ranking.category,
+        justification: extractedData.ranking.justification
       },
       job: job._id,
       organization: organizationId,
