@@ -1,10 +1,12 @@
 const cvService = require('../services/cvService');
 const { CV,Job } = require('../models/index');
 
-async function handleCVUpload(req, res) {
+async function handleCVUpload(req, res, next) {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
+      const error = new Error('No files uploaded');
+      error.statusCode = 400;
+      return next(error);
     }
 
     const job = await Job.findOne({ 
@@ -13,12 +15,11 @@ async function handleCVUpload(req, res) {
     }).select('title description location workType employmentType requiredSkills _id');
 
     if (!job) {
-      return {
-        success: false,
-        error: 'Job not found or access denied',
-        fileName: file.originalname
-      };
+      const error = new Error('Job not found or access denied');
+      error.statusCode = 404;
+      return next(error);
     }
+
     const results = await cvService.processCVs(
       req.files,
       job,
@@ -31,36 +32,42 @@ async function handleCVUpload(req, res) {
       failed: results.failed
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 }
 
-async function getAllCVs(req, res) {
+async function getAllCVs(req, res, next) {
   try {
     const result = await cvService.getAllCVs(req.user.organizationId, req.query);
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      const error = new Error(result.error);
+      error.statusCode = 400;
+      return next(error);
     }
     res.json(result.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 }
-async function deleteCVById(req, res) {
+
+async function deleteCVById(req, res, next) {
   try {
     const { cvId } = req.params;
     const result = await cvService.deleteCVById(cvId, req.user.organizationId);
 
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      const error = new Error(result.error);
+      error.statusCode = 400;
+      return next(error);
     }
 
     res.json({ message: 'CV deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 }
-async function updateCVStatus(req, res) {
+
+async function updateCVStatus(req, res, next) {
   try {
     const { cvId } = req.params;
     const { status } = req.body;
@@ -68,12 +75,15 @@ async function updateCVStatus(req, res) {
     const result = await cvService.updateCVStatus(cvId, status, req.user.organizationId);
     
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      const error = new Error(result.error);
+      error.statusCode = 400;
+      return next(error);
     }
     
     res.json(result.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 }
-module.exports = { handleCVUpload, getAllCVs ,updateCVStatus,deleteCVById};
+
+module.exports = { handleCVUpload, getAllCVs, updateCVStatus, deleteCVById };

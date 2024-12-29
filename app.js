@@ -9,14 +9,11 @@ const connectDB = require('./src/config/database');
 const organizationRoutes = require('./src/routes/organizationRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
 const billingRoutes = require('./src/routes/billingRoutes');
+const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
 
-// Error handler middleware
-const errorHandler = (err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: err.message });
-};
+
 
 const corsOptions = {
   origin: '*',
@@ -52,8 +49,15 @@ connectDB()
       console.log('- POST /cv/analyze');
     });
   })
-  .catch(error => {
+  .catch(async error => {
     console.error('Failed to start server:', error);
-  });
+    await logtail.error("Server Start Failed", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date()
+    });
+    await logtail.flush();
+    process.exit(1);
+  }); 
 
 module.exports = app;
