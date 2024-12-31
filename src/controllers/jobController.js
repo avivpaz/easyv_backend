@@ -119,7 +119,40 @@ async function updateJob(req, res, next) {
     next(error);
   }
 }
+async function updateJobStatus(req, res, next) {
+  try {
+    const { id: jobId } = req.params;
+    const { status } = req.body;
+    
+    // Validate status
+    if (!status) {
+      const error = new Error('Status is required');
+      error.statusCode = 400;
+      return next(error);
+    }
+    
+    // Only allow valid status values
+    const validStatuses = ['active', 'draft', 'closed', 'deleted'];
+    if (!validStatuses.includes(status)) {
+      const error = new Error('Invalid status value');
+      error.statusCode = 400;
+      return next(error);
+    }
 
+    const result = await jobService.updateJob(jobId, { status }, req.user.organizationId);
+    
+    if (!result.success) {
+      const error = new Error(result.error);
+      error.statusCode = 404;
+      return next(error);
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('Update job status error:', error);
+    next(error);
+  }
+}
 async function deleteJob(req, res, next) {
   try {
     const { id: jobId } = req.params;
@@ -189,5 +222,6 @@ module.exports = {
   deleteJob,
   generateJobDescription,
   generateSocialShare,
-  updateJob 
+  updateJob ,
+  updateJobStatus
 };
