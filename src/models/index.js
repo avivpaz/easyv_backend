@@ -129,8 +129,7 @@ const creditTransactionSchema = new mongoose.Schema({
     }
   },
   metadata: {
-    paddleTransactionId: String,    // For purchases
-    paddleEventId: String,          // For webhook deduplication
+    paypalOrderId: String,     // For PayPal purchases
     description: String,            // Optional description
     performedBy: {                  // User who performed the action
       type: mongoose.Schema.Types.ObjectId,

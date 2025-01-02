@@ -16,7 +16,7 @@
         // Verify organization ownership
         if (customData.organizationId !== req.user.organizationId.toString()) {
           return res.status(403).json({ error: 'Access denied' });
-        }ת
+        }
   
         const order = await billingService.createPayPalOrder({
           price,
@@ -26,8 +26,19 @@
           }
         });
   
+        const orderResponse = await billingService.createPayPalOrder({
+          price,
+          customData: {
+            ...customData,
+            userId: req.user.id
+          }
+        });
+    
         res.json({
-          id: order.id
+          id: orderResponse.id,
+          status: orderResponse.status,
+          approve_url: orderResponse.approve_url,
+          links: orderResponse.links
         });
       } catch (error) {
         console.error('Create PayPal order error:', error);
@@ -36,6 +47,41 @@
         });
       }
     },
+
+async approvePayPalOrder(req, res) {
+  try {
+    const { orderId } = req.body;
+    
+    if (!orderId) {
+      return res.status(400).json({ 
+        error: 'Missing orderId' 
+      });
+    }
+
+    const orderData = await billingService.approvePayPalOrder(orderId);
+
+    res.json({
+      status: orderData.status,
+      purchase_units: orderData.purchase_units,
+      details: orderData.details
+    });
+  } catch (error) {
+    console.error('Approve PayPal order error:', error);
+    
+    // Check for specific PayPal API errors
+    if (error.details?.[0]?.issue === 'INSTRUMENT_DECLINED') {
+      return res.status(400).json({
+        error: 'Payment declined',
+        details: error.details
+      });
+    }
+
+    res.status(500).json({ 
+      error: 'Failed to approve PayPal order',
+      details: error.message
+    });
+  }
+},
     async getCreditsBalance(req, res) {
       try {
         const { organizationId } = req.params;

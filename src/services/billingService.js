@@ -1,66 +1,139 @@
 const mongoose = require('mongoose');
 const { Organization, CreditTransaction } = require('../models');
-const { getPaddleClient } = require('../config/paddle');
-const paypal = require('paypal-server-sdk');
 
-function getPayPalClient() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  
-  const config = {
-    mode: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
-    client_id: clientId,
-    client_secret: clientSecret
-  };
-  
-  return new paypal.core.PayPalClient(config);
+// Cache for PayPal SDK
+let paypalSDK = null;
+
+// Helper function to load PayPal SDK
+async function loadPayPalSDK() {
+  if (!paypalSDK) {
+    paypalSDK = await import('@paypal/paypal-server-sdk');
+  }
+  return paypalSDK;
 }
 
 class BillingService {
+  async getPayPalClient() {
+    const sdk = await loadPayPalSDK();
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    
+    const environment = process.env.NODE_ENV === 'production'
+      ?  sdk.Environment.Production
+      :  sdk.Environment.Sandbox;
+
+    return  new sdk.Client({
+      clientCredentialsAuthCredentials: {
+        oAuthClientId: clientId,
+        oAuthClientSecret: clientSecret,
+    },
+    timeout: 0,
+    environment: environment,
+    logging: {
+        logLevel: sdk.LogLevel.info,
+        logRequest: { logBody: true },
+        logResponse: { logHeaders: true },
+    }
+    });
+  }
+
   async createPayPalOrder(data) {
     const { price, customData } = data;
     
     try {
-      const client = getPayPalClient();
-      
-      const orderData = {
-        intent: 'CAPTURE',
-        purchase_units: [{
-          reference_id: customData.organizationId,
-          description: `${customData.credits} CV Credits Purchase`,
-          custom_id: JSON.stringify({
-            credits: customData.credits,
-            organizationId: customData.organizationId,
-            tier: customData.tier || 'custom'
-          }),
-          amount: {
-            currency_code: 'USD',
-            value: Number(price).toFixed(2)
-          }
-        }]
-      };
+      const sdk = await loadPayPalSDK();
+      const client = await this.getPayPalClient();
+      const ordersController = new sdk.OrdersController(client);
 
-      const order = await client.orders.create(orderData);
-      return order;
+      const orderData={ 
+        prefer: "return=minimal",
+         body:{
+            intent: 'CAPTURE',
+            applicationContext: {
+              shippingPreference: 'NO_SHIPPING'
+            },
+            purchaseUnits: [{
+              referenceId: customData.organizationId,
+              description: `${customData.credits} CV Credits Purchase`,
+              customId: JSON.stringify({
+                credits: customData.credits,
+                organizationId: customData.organizationId,
+                tier: customData.tier || 'custom'
+              }),
+              amount: {
+                currencyCode: 'USD',
+                value: Number(price).toFixed(2)
+              }
+            }]
+      }}
 
+      try {
+        const order = await ordersController.ordersCreate(orderData);
+        return JSON.parse(order.body);
+      } catch (error) {
+        if (error instanceof sdk.ApiError) {
+          console.error('PayPal API Error:', {
+            statusCode: error.statusCode,
+            message: error.message,
+            details: error.details
+          });
+        }
+        throw error;
+      }
     } catch (error) {
       console.error('PayPal order creation error:', error);
       throw error;
     }
   }
 
-  // Rest of the BillingService class remains the same
+
+async approvePayPalOrder(orderId) {
+  try {
+    const sdk = await loadPayPalSDK();
+    const client = await this.getPayPalClient();
+    const ordersController = new sdk.OrdersController(client);
+    const collect = {
+      id: orderId,
+      prefer: "return=minimal",
+  };
+
+    try {
+      const order = await ordersController.ordersCapture(collect);
+      const orderData = JSON.parse(order.body);
+      
+      // Process the successful payment
+      if (orderData.status === 'COMPLETED') {
+        await this.handleCreditPurchase(orderData);
+      }
+
+      return orderData;
+    } catch (error) {
+      if (error instanceof sdk.ApiError) {
+        console.error('PayPal API Error:', {
+          statusCode: error.statusCode,
+          message: error.message,
+          details: error.details
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('PayPal order capture error:', error);
+    throw error;
+  }
+}
+
   async createCreditTransaction(data) {
     const { organizationId, type, amount, relatedEntity, metadata } = data;
     
     try {
-      if (metadata?.paddleEventId) {
+      if (metadata?.paypalOrderId) {
         const existingTransaction = await CreditTransaction.findOne({
-          'metadata.paddleEventId': metadata.paddleEventId
+          'metadata.paypalOrderId': metadata.paypalOrderId
         });
 
         if (existingTransaction) {
-          console.log(`Event ${metadata.paddleEventId} already processed`);
+          console.log(`Order ${metadata.paypalOrderId} already processed`);
           return existingTransaction;
         }
       }
@@ -130,75 +203,70 @@ class BillingService {
 
   async getTransactions(organizationId) {
     try {
-      const organization = await Organization.findById(organizationId)
-        .select('customerId');
-
-      if (!organization?.customerId) {
-        return [];
-      }
-
-      const paddle = getPaddleClient();
-      const { data: transactions } = await paddle.transactions.list({
-        customer_id: organization.customerId,
-        order: 'desc'
-      });
-
+      const transactions = await CreditTransaction.find({ 
+        organization: organizationId,
+        type: 'purchase'
+      })
+      .sort({ createdAt: -1 })
+      .select('amount metadata createdAt balanceAfter')
+      .populate('metadata.performedBy', 'fullName email');
+  
       return transactions.map(transaction => ({
-        id: transaction.id,
-        date: transaction.created_at,
-        amount: transaction.details.totals.total,
-        credits: transaction.custom_data?.credits || 0,
-        status: transaction.status,
-        invoiceUrl: transaction.invoice_url
+        id: transaction.metadata.paypalOrderId, // Updated from paddleTransactionId
+        date: transaction.createdAt,
+        amount: transaction.amount,
+        credits: transaction.amount,
+        status: 'completed', // PayPal transactions are only recorded when completed
+        performedBy: transaction.metadata.performedBy ? {
+          id: transaction.metadata.performedBy._id,
+          name: transaction.metadata.performedBy.fullName,
+          email: transaction.metadata.performedBy.email
+        } : null,
+        description: transaction.metadata.description
       }));
     } catch (error) {
       console.error('Get transactions error:', error);
       throw error;
     }
-  }
+  } 
 
-  async handleCreditPurchase(eventData) {
+  async handleCreditPurchase(orderData) {
     try {
       const existingTransaction = await CreditTransaction.findOne({
-        'metadata.paddleEventId': eventData.event_id
+        'metadata.paypalOrderId': orderData.id
       });
-
+  
       if (existingTransaction) {
-        console.log(`Event ${eventData.event_id} already processed`);
+        console.log(`Order ${orderData.id} already processed`);
         return null;
       }
-
-      const organizationId = eventData.data.custom_data?.organizationId;
-      const credits = parseInt(eventData.data.custom_data?.credits) || 0;
+  
+      const customData = JSON.parse(orderData.purchase_units[0].payments.captures[0].custom_id);
+      const organizationId = customData.organizationId;
+      const credits = parseInt(customData.credits) || 0;
       
       if (!organizationId || !credits) {
-        throw new Error('Missing required data in webhook');
+        throw new Error('Missing required data in order');
       }
-
+  
       const organization = await Organization.findById(organizationId);
       if (!organization) {
         throw new Error('Organization not found');
       }
-
-      if (!organization.customerId) {
-        organization.customerId = eventData.data.customer_id;
-        await organization.save();
-      }
-
-      if (eventData.data.status === 'completed') {
+  
+      if (orderData.status === 'COMPLETED') {
         await this.createCreditTransaction({
           organizationId,
           type: 'purchase',
           amount: credits,
           metadata: {
-            paddleTransactionId: eventData.data.id,
-            paddleEventId: eventData.event_id,
-            description: `Credit purchase - ${credits} credits`,
-            performedBy: eventData.data.custom_data?.userId
+            description: `PayPal purchase - ${credits} credits`,
+            performedBy: customData.userId,
+            paypalOrderId: orderData.id // Use paypalOrderId instead of paddleTransactionId
           }
         });
       }
-
+  
       return organization;
     } catch (error) {
       console.error('Handle credit purchase error:', error);
@@ -212,13 +280,16 @@ class BillingService {
         organizationId,
         type: 'deduction',
         amount: -creditsToDeduct,
-        relatedEntity: metadata.relatedEntity,
+        relatedEntity: metadata.entityType && metadata.entityId ? {
+          entityType: metadata.entityType,
+          entityId: metadata.entityId
+        } : undefined,
         metadata: {
           description: metadata.description || `Deduction of ${creditsToDeduct} credits`,
           performedBy: metadata.performedBy
         }
       });
-
+  
       return {
         success: true,
         remainingCredits: transaction.balanceAfter
@@ -234,20 +305,18 @@ class BillingService {
       throw error;
     }
   }
-
   async addCreditsManually(organizationId, amount, adminUserId, reason) {
     if (amount <= 0) {
       throw new Error('Amount must be positive');
     }
-
+  
     return this.createCreditTransaction({
       organizationId,
       type: 'adjustment',
       amount,
       metadata: {
         description: reason || `Manual credit adjustment: +${amount} credits`,
-        performedBy: adminUserId,
-        isManualAdjustment: true
+        performedBy: adminUserId
       }
     });
   }
