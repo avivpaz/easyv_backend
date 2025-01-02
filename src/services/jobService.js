@@ -211,7 +211,7 @@ const jobService = {
     try {
       const job = await Job.findOne({ 
         _id: jobId,
-        status: 'active'
+        status: { $in: ['active', 'draft'] }
       })
       .select('title description location workType employmentType requiredSkills niceToHaveSkills createdAt -_id');
    

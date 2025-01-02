@@ -1,13 +1,91 @@
 const mongoose = require('mongoose');
 const { Organization, CreditTransaction } = require('../models');
 const { getPaddleClient } = require('../config/paddle');
+import {
+  ApiError,
+  CheckoutPaymentIntent,
+  Client,
+  Environment,
+  LogLevel,
+  OrdersController,
+  PaymentsController,
+} from "@paypal/paypal-server-sdk";
 
-class BillingService {
+function getPayPalClient() {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  
+  const environment = process.env.NODE_ENV === 'production'
+    ? new Environment.Production()
+    : new Environment.Sandbox();
+
+  const client = new Client({
+    environment,
+    clientId,
+    clientSecret,
+    logLevel: LogLevel.ERROR // You can adjust this based on your needs
+  });
+  
+  return client;
+}
+
+const BillingService= {
+  async createPayPalOrder(data) {
+    const { price, customData } = data;
+    
+    try {
+      const client = getPayPalClient();
+      const ordersController = new OrdersController(client);
+
+      const orderData = {
+        intent: CheckoutPaymentIntent.CAPTURE,
+        purchase_units: [{
+          reference_id: customData.organizationId,
+          description: `${customData.credits} CV Credits Purchase`,
+          custom_id: JSON.stringify({
+            credits: customData.credits,
+            organizationId: customData.organizationId,
+            tier: customData.tier || 'custom'
+          }),
+          amount: {
+            currency_code: 'USD',
+            value: Number(price).toFixed(2)
+          }
+        }],
+        application_context: {
+          brand_name: process.env.COMPANY_NAME || 'Your Company',
+          landing_page: 'NO_PREFERENCE',
+          user_action: 'PAY_NOW',
+          return_url: `${process.env.APP_URL}/api/paypal/capture`,
+          cancel_url: `${process.env.APP_URL}/billing`
+        }
+      };
+
+      try {
+        const order = await ordersController.create(orderData);
+        return order;
+      } catch (error) {
+        if (error instanceof ApiError) {
+          console.error('PayPal API Error:', {
+            statusCode: error.statusCode,
+            message: error.message,
+            details: error.details
+          });
+        }
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('PayPal order creation error:', error);
+      throw error;
+    }
+  },
+
+  // Rest of the BillingService class remains unchanged
   async createCreditTransaction(data) {
     const { organizationId, type, amount, relatedEntity, metadata } = data;
     
     try {
-      // Check for existing event if it's a Paddle transaction
       if (metadata?.paddleEventId) {
         const existingTransaction = await CreditTransaction.findOne({
           'metadata.paddleEventId': metadata.paddleEventId
@@ -42,7 +120,6 @@ class BillingService {
       };
 
       const isDocumentDB = process.env.NODE_ENV === 'production';
-    // TODO change this false to check i document db 
       if (false) {
         const session = await mongoose.startSession();
         session.startTransaction();
@@ -64,7 +141,7 @@ class BillingService {
       console.error('Create transaction error:', error);
       throw error;
     }
-  }
+  },
 
   async getCreditsBalance(organizationId) {
     try {
@@ -81,7 +158,7 @@ class BillingService {
       console.error('Get credits balance error:', error);
       throw error;
     }
-  }
+  },
 
   async getTransactions(organizationId) {
     try {
@@ -110,11 +187,10 @@ class BillingService {
       console.error('Get transactions error:', error);
       throw error;
     }
-  }
+  },
 
   async handleCreditPurchase(eventData) {
     try {
-      // Check if we've already processed this event
       const existingTransaction = await CreditTransaction.findOne({
         'metadata.paddleEventId': eventData.event_id
       });
@@ -136,13 +212,11 @@ class BillingService {
         throw new Error('Organization not found');
       }
 
-      // Store/update customer ID
       if (!organization.customerId) {
         organization.customerId = eventData.data.customer_id;
         await organization.save();
       }
 
-      // Only add credits if the transaction is completed
       if (eventData.data.status === 'completed') {
         await this.createCreditTransaction({
           organizationId,
@@ -150,7 +224,7 @@ class BillingService {
           amount: credits,
           metadata: {
             paddleTransactionId: eventData.data.id,
-            paddleEventId: eventData.event_id,  // Store event ID for deduplication
+            paddleEventId: eventData.event_id,
             description: `Credit purchase - ${credits} credits`,
             performedBy: eventData.data.custom_data?.userId
           }
@@ -162,7 +236,7 @@ class BillingService {
       console.error('Handle credit purchase error:', error);
       throw error;
     }
-  }
+  },
 
   async deductCredits(organizationId, creditsToDeduct = 1, metadata = {}) {
     try {
@@ -191,7 +265,7 @@ class BillingService {
       }
       throw error;
     }
-  }
+  },
 
   async addCreditsManually(organizationId, amount, adminUserId, reason) {
     if (amount <= 0) {
@@ -208,7 +282,7 @@ class BillingService {
         isManualAdjustment: true
       }
     });
-  }
+  },
 
   async getCreditHistory(organizationId, options = {}) {
     const {
@@ -253,4 +327,4 @@ class BillingService {
   }
 }
 
-module.exports = new BillingService();
+module.exports = BillingService;
