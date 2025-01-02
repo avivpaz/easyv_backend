@@ -22,7 +22,9 @@ class BillingService {
       ?  sdk.Environment.Production
       :  sdk.Environment.Sandbox;
 
-    return  new sdk.Client({
+
+      console.log('NODE_ENV:', process.env.NODE_ENV);
+      return  new sdk.Client({
       clientCredentialsAuthCredentials: {
         oAuthClientId: clientId,
         oAuthClientSecret: clientSecret,
