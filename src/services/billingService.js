@@ -267,7 +267,7 @@ async approvePayPalOrder(orderId) {
         });
       }
   
-      return organization;
+        return organization;
     } catch (error) {
       console.error('Handle credit purchase error:', error);
       throw error;
