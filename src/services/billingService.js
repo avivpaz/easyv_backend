@@ -1,44 +1,30 @@
 const mongoose = require('mongoose');
 const { Organization, CreditTransaction } = require('../models');
 const { getPaddleClient } = require('../config/paddle');
-import {
-  ApiError,
-  CheckoutPaymentIntent,
-  Client,
-  Environment,
-  LogLevel,
-  OrdersController,
-  PaymentsController,
-} from "@paypal/paypal-server-sdk";
+const paypal = require('paypal-server-sdk');
 
 function getPayPalClient() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
   
-  const environment = process.env.NODE_ENV === 'production'
-    ? new Environment.Production()
-    : new Environment.Sandbox();
-
-  const client = new Client({
-    environment,
-    clientId,
-    clientSecret,
-    logLevel: LogLevel.ERROR // You can adjust this based on your needs
-  });
+  const config = {
+    mode: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
+    client_id: clientId,
+    client_secret: clientSecret
+  };
   
-  return client;
+  return new paypal.core.PayPalClient(config);
 }
 
-const BillingService= {
+class BillingService {
   async createPayPalOrder(data) {
     const { price, customData } = data;
     
     try {
       const client = getPayPalClient();
-      const ordersController = new OrdersController(client);
-
+      
       const orderData = {
-        intent: CheckoutPaymentIntent.CAPTURE,
+        intent: 'CAPTURE',
         purchase_units: [{
           reference_id: customData.organizationId,
           description: `${customData.credits} CV Credits Purchase`,
@@ -51,37 +37,19 @@ const BillingService= {
             currency_code: 'USD',
             value: Number(price).toFixed(2)
           }
-        }],
-        application_context: {
-          brand_name: process.env.COMPANY_NAME || 'Your Company',
-          landing_page: 'NO_PREFERENCE',
-          user_action: 'PAY_NOW',
-          return_url: `${process.env.APP_URL}/api/paypal/capture`,
-          cancel_url: `${process.env.APP_URL}/billing`
-        }
+        }]
       };
 
-      try {
-        const order = await ordersController.create(orderData);
-        return order;
-      } catch (error) {
-        if (error instanceof ApiError) {
-          console.error('PayPal API Error:', {
-            statusCode: error.statusCode,
-            message: error.message,
-            details: error.details
-          });
-        }
-        throw error;
-      }
+      const order = await client.orders.create(orderData);
+      return order;
 
     } catch (error) {
       console.error('PayPal order creation error:', error);
       throw error;
     }
-  },
+  }
 
-  // Rest of the BillingService class remains unchanged
+  // Rest of the BillingService class remains the same
   async createCreditTransaction(data) {
     const { organizationId, type, amount, relatedEntity, metadata } = data;
     
@@ -141,7 +109,7 @@ const BillingService= {
       console.error('Create transaction error:', error);
       throw error;
     }
-  },
+  }
 
   async getCreditsBalance(organizationId) {
     try {
@@ -158,7 +126,7 @@ const BillingService= {
       console.error('Get credits balance error:', error);
       throw error;
     }
-  },
+  }
 
   async getTransactions(organizationId) {
     try {
@@ -187,7 +155,7 @@ const BillingService= {
       console.error('Get transactions error:', error);
       throw error;
     }
-  },
+  }
 
   async handleCreditPurchase(eventData) {
     try {
@@ -236,7 +204,7 @@ const BillingService= {
       console.error('Handle credit purchase error:', error);
       throw error;
     }
-  },
+  }
 
   async deductCredits(organizationId, creditsToDeduct = 1, metadata = {}) {
     try {
@@ -265,7 +233,7 @@ const BillingService= {
       }
       throw error;
     }
-  },
+  }
 
   async addCreditsManually(organizationId, amount, adminUserId, reason) {
     if (amount <= 0) {
@@ -282,7 +250,7 @@ const BillingService= {
         isManualAdjustment: true
       }
     });
-  },
+  }
 
   async getCreditHistory(organizationId, options = {}) {
     const {
@@ -327,4 +295,4 @@ const BillingService= {
   }
 }
 
-module.exports = BillingService;
+module.exports = new BillingService();
