@@ -148,9 +148,8 @@ const authService = {
     try {
       // Create OAuth2 client
    
-  
       // Exchange code for tokens
-    const { tokens } = await googleClient.getToken(code);
+      const { tokens } = await googleClient.getToken(code);
       
       // Get user info using the access token
       const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -163,6 +162,9 @@ const authService = {
   
       const userData = await userInfoResponse.json();
       const { sub: googleId, email, name } = userData;
+  
+      // Track if this is a new user
+      let isNewUser = false;
   
       // Rest of your existing user creation/update logic
       let user = await User.findOne({ 
@@ -179,6 +181,7 @@ const authService = {
           await user.save();
         }
       } else {
+        isNewUser = true;
         const organization = await Organization.create({
           name: `My Company`,
           needsSetup: true
@@ -215,6 +218,7 @@ const authService = {
       return {
         success: true,
         data: {
+          isNewUser,
           accessToken,
           refreshToken,
           user: {

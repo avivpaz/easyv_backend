@@ -14,82 +14,31 @@ async function loadPayPalSDK() {
 
 class BillingService {
   async getPayPalClient() {
-    try {
-      // Log the start of initialization
-      console.log('[PayPal] Starting client initialization...');
-      
-      const sdk = await loadPayPalSDK();
-      console.log('[PayPal] SDK loaded successfully');
-      
-      const clientId = process.env.PAYPAL_CLIENT_ID;
-      const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-      
-      // Log environment variables (safely)
-      console.log('[PayPal] Environment check:', {
-        hasClientId: !!clientId,
-        hasClientSecret: !!clientSecret,
-        clientIdLength: clientId?.length,
-        secretLength: clientSecret?.length,
-        nodeEnv: process.env.NODE_ENV
-      });
-  
-      const environment = process.env.NODE_ENV === 'production'
-        ? sdk.Environment.Production
-        : sdk.Environment.Sandbox;
-      
-      console.log('[PayPal] Selected environment:', 
-        process.env.NODE_ENV === 'production' ? 'Production' : 'Sandbox'
-      );
-  
-      // Log client configuration (without sensitive data)
-      console.log('[PayPal] Initializing client with config:', {
-        timeout: 0,
-        environment: environment?.constructor?.name || 'Unknown',
-        logging: {
-          logLevel: sdk.LogLevel.info,
-          hasRequestLogging: true,
-          hasResponseLogging: true
-        }
-      });
-  
-      const client = new sdk.Client({
-        clientCredentialsAuthCredentials: {
-          oAuthClientId: clientId,
-          oAuthClientSecret: clientSecret,
-        },
-        timeout: 0,
-        environment: environment,
-        logging: {
-          logLevel: sdk.LogLevel.info,
-          logRequest: { logBody: true },
-          logResponse: { logHeaders: true },
-        }
-      });
-  
-      console.log('[PayPal] Client initialized successfully');
-      return client;
-  
-    } catch (error) {
-      // Detailed error logging
-      console.error('[PayPal] Client initialization failed:', {
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        errorCode: error.code,
-        errorType: error.constructor.name,
-        // Log additional error properties if they exist
-        details: error.details || 'No additional details',
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          headers: error.response.headers,
-          // Don't log response body as it might contain sensitive info
-        } : 'No response data'
-      });
-      
-      throw error;
+    const sdk = await loadPayPalSDK();
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    
+    const environment = process.env.NODE_ENV === 'production'
+      ?  sdk.Environment.Production
+      :  sdk.Environment.Sandbox;
+
+
+      console.log('NODE_ENV:', process.env.NODE_ENV);
+      return  new sdk.Client({
+      clientCredentialsAuthCredentials: {
+        oAuthClientId: clientId,
+        oAuthClientSecret: clientSecret,
+    },
+    timeout: 0,
+    environment: environment,
+    logging: {
+        logLevel: sdk.LogLevel.info,
+        logRequest: { logBody: true },
+        logResponse: { logHeaders: true },
     }
+    });
   }
+
   async createPayPalOrder(data) {
     const { price, customData } = data;
     
