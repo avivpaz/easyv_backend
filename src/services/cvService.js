@@ -367,7 +367,7 @@ async processCV(file, job, organizationId) {
       s3Path: s3Path,       // Store the full S3 path for deletion
       fileType: file.mimetype,
       submissionType: 'file',
-      status: 'pending'
+      status: cvResult.data.ranking.category === 'Not Relevant' ? 'rejected' : 'pending'
     });
 
     return { success: true, data: cv };
@@ -604,7 +604,7 @@ async processTextSubmission(formData, job, organizationId) {
       organization: organizationId,
       submissionType: 'text', 
       rawText: formData.cvText, 
-      status: 'pending'
+      status: cvResult.data.ranking.category === 'Not Relevant' ? 'rejected' : 'pending'
     });
 
     return { success: true, data: cv };
