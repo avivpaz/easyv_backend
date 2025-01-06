@@ -9,6 +9,8 @@ const connectDB = require('./src/config/database');
 const organizationRoutes = require('./src/routes/organizationRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
 const billingRoutes = require('./src/routes/billingRoutes');
+const helpRoutes = require('./src/routes/helpRoutes');
+
 const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -32,6 +34,7 @@ app.use('/auth', authRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/public', publicRoutes);
 app.use('/billing', billingRoutes);
+app.use('/help', helpRoutes);
 
 // Error handling
 app.use(errorHandler);
