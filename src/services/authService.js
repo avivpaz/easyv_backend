@@ -189,7 +189,7 @@ const authService = {
   
         await billingService.addCreditsManually(
           organization._id,
-          10,
+          5,
           null,
           'Initial Google signup bonus credits'
         );
@@ -286,7 +286,7 @@ async googleAuth(token) {
 
       await billingService.addCreditsManually(
         organization._id,
-        10,
+        5,
         null,
         'Initial Google signup bonus credits'
       );
