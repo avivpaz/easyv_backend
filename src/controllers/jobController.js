@@ -11,6 +11,10 @@ async function createJob(req, res, next) {
       employmentType: req.body.employmentType,
       requiredSkills: req.body.requiredSkills,
       niceToHaveSkills: req.body.niceToHaveSkills,
+      salaryMin: req.body.salaryMin,
+      salaryMax: req.body.salaryMax,
+      salaryCurrency: req.body.salaryCurrency,
+      salaryPeriod: req.body.salaryPeriod,
       status: req.body.status || 'active'
     };
 
@@ -27,6 +31,38 @@ async function createJob(req, res, next) {
   }
 }
 
+async function updateJob(req, res, next) {
+  try {
+    const { id: jobId } = req.params;
+    const jobData = {
+      title: req.body.title,
+      description: req.body.description,
+      location: req.body.location,
+      workType: req.body.workType,
+      employmentType: req.body.employmentType,
+      requiredSkills: req.body.requiredSkills,
+      niceToHaveSkills: req.body.niceToHaveSkills,
+      salaryMin: req.body.salaryMin,
+      salaryMax: req.body.salaryMax,
+      salaryCurrency: req.body.salaryCurrency,
+      salaryPeriod: req.body.salaryPeriod,
+      status: req.body.status || 'active'
+    };
+
+    const result = await jobService.updateJob(jobId, jobData, req.user.organizationId);
+    
+    if (!result.success) {
+      const error = new Error(result.error);
+      error.statusCode = 404;
+      return next(error);
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('Update job error:', error);
+    next(error);
+  }
+}
 async function getOrganizationJobs(req, res, next) {
   try {
     const organizationId = req.user.organizationId;
@@ -91,34 +127,7 @@ async function getJobCVs(req, res, next) {
   }
 }
 
-async function updateJob(req, res, next) {
-  try {
-    const { id: jobId } = req.params;
-    const jobData = {
-      title: req.body.title,
-      description: req.body.description,
-      location: req.body.location,
-      workType: req.body.workType,
-      employmentType: req.body.employmentType,
-      requiredSkills: req.body.requiredSkills,
-      niceToHaveSkills: req.body.niceToHaveSkills,
-      status: req.body.status || 'active'
-    };
 
-    const result = await jobService.updateJob(jobId, jobData, req.user.organizationId);
-    
-    if (!result.success) {
-      const error = new Error(result.error);
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    res.json(result.data);
-  } catch (error) {
-    console.error('Update job error:', error);
-    next(error);
-  }
-}
 async function updateJobStatus(req, res, next) {
   try {
     const { id: jobId } = req.params;

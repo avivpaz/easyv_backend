@@ -26,30 +26,41 @@ const userSchema = new mongoose.Schema({
 });
 
 const jobSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
-    description: String,
-    location: { type: String },
-    workType: { 
-      type: String, 
-      enum: ['remote', 'hybrid', 'onsite'], 
-      default: 'hybrid' 
-    },
-    employmentType: {
-      type: String,
-      enum: ['full-time', 'part-time', 'contract', 'internship'],
-      default: 'full-time'
-    },
-    requiredSkills: [{ type: String }],
-    niceToHaveSkills: [{ type: String }],
-    status: { 
-      type: String, 
-      enum: ['active', 'draft', 'closed', 'deleted'], 
-      default: 'active' 
-    },
-    createdAt: { type: Date, default: Date.now }
+  title: { type: String, required: true },
+  organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
+  description: String,
+  location: { type: String },
+  workType: { 
+    type: String, 
+    enum: ['remote', 'hybrid', 'onsite'], 
+    default: 'hybrid' 
+  },
+  employmentType: {
+    type: String,
+    enum: ['full-time', 'part-time', 'contract', 'internship'],
+    default: 'full-time'
+  },
+  requiredSkills: [{ type: String }],
+  niceToHaveSkills: [{ type: String }],
+  salaryMin: { type: Number },
+  salaryMax: { type: Number },
+  salaryCurrency: { 
+    type: String, 
+    enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
+    default: 'USD'
+  },
+  salaryPeriod: {
+    type: String,
+    enum: ['hour', 'month', 'year'],
+    default: 'year'
+  },
+  status: { 
+    type: String, 
+    enum: ['active', 'draft', 'closed', 'deleted'], 
+    default: 'active' 
+  },
+  createdAt: { type: Date, default: Date.now }
 });
-
 
 const cvSchema = new mongoose.Schema({
   candidate: {

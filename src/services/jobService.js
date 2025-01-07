@@ -138,7 +138,7 @@ const jobService = {
     }
   },
 
-  async  getPublicOrganizationJobs(organizationId, query = {}) {
+  async getPublicOrganizationJobs(organizationId, query = {}) {
     try {
       const { page = 1, limit = 10, search } = query;
       const skip = (page - 1) * limit;
@@ -159,7 +159,7 @@ const jobService = {
    
       // Get jobs with pagination
       const jobs = await Job.find(queryConditions)
-        .select('title description location workType employmentType requiredSkills createdAt _id')
+        .select('title description location workType employmentType requiredSkills salaryMin salaryMax salaryCurrency salaryPeriod createdAt _id')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit));
@@ -184,7 +184,30 @@ const jobService = {
       console.error('Get public organization jobs error:', error);
       return { success: false, error: 'Failed to fetch jobs' };
     }
-   },   
+},
+
+async getPublicJob(jobId) {
+    try {
+      const job = await Job.findOne({ 
+        _id: jobId,
+        status: { $in: ['active', 'draft'] }
+      })
+      .select('title description location workType employmentType requiredSkills niceToHaveSkills salaryMin salaryMax salaryCurrency salaryPeriod createdAt -_id');
+   
+      if (!job) {
+        return { success: false, error: 'Job not found' };
+      }
+   
+      return {
+        success: true,
+        data: job
+      };
+   
+    } catch (error) {
+      console.error('Get public job error:', error);
+      return { success: false, error: 'Failed to fetch job' };
+    }
+},
   async getJob(jobId) {
     try {
         const job = await Job.findOne({
@@ -207,28 +230,7 @@ const jobService = {
       return { success: false, error: error.message };
     }
   },
-  async  getPublicJob(jobId) {
-    try {
-      const job = await Job.findOne({ 
-        _id: jobId,
-        status: { $in: ['active', 'draft'] }
-      })
-      .select('title description location workType employmentType requiredSkills niceToHaveSkills createdAt -_id');
-   
-      if (!job) {
-        return { success: false, error: 'Job not found' };
-      }
-   
-      return {
-        success: true,
-        data: job
-      };
-   
-    } catch (error) {
-      console.error('Get public job error:', error);
-      return { success: false, error: 'Failed to fetch job' };
-    }
-   },
+
    async getJobCVs(jobId, organizationId, userId) {
     try {
       const job = await Job.findOne({
