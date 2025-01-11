@@ -1,5 +1,6 @@
 // models/index.js
 const mongoose = require('mongoose');
+const { EmailIntegration } = require('./integrations');
 
 const organizationSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -163,5 +164,6 @@ module.exports = {
   User: mongoose.model('User', userSchema),
   Job: mongoose.model('Job', jobSchema),
   CV: mongoose.model('CV', cvSchema),
-  CreditTransaction: mongoose.model('CreditTransaction', creditTransactionSchema)
+  CreditTransaction: mongoose.model('CreditTransaction', creditTransactionSchema),
+  EmailIntegration // Export the integration models
 };
