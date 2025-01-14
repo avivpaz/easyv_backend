@@ -13,6 +13,7 @@ const helpRoutes = require('./src/routes/helpRoutes');
 const integrationRoutes = require('./src/routes/integrationRoutes');
 
 const errorHandler = require('./src/middleware/errorHandler');
+// require('./src/jobs/emailScanJob');  // This will start the cron job
 
 const app = express();
 

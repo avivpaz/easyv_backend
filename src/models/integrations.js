@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+// models/integrations.js
 const emailIntegrationSchema = new Schema({
   userId: { 
     type: Schema.Types.ObjectId, 
@@ -36,15 +37,6 @@ const emailIntegrationSchema = new Schema({
     default: 'active' 
   },
   lastError: String,
-  processedEmails: [{
-    messageId: String,
-    processedAt: Date,
-    hasCV: Boolean,
-    cvId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'CV' 
-    }
-  }],
   providerMetadata: {
     type: Map,
     of: String

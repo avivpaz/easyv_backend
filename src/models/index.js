@@ -98,6 +98,7 @@ const cvSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   fileUrl: { type: String, required: false },
   submissionType: { type: String, enum: ['file', 'text'], required: true },
+  source: { type: String, enum: ['landing_page', 'careers_page', 'gmail', 'api'], default: 'landing_page' },
   rawText: { type: String },
   status: { type: String, enum: ['pending', 'reviewed', 'rejected'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },

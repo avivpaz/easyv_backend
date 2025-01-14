@@ -281,8 +281,8 @@ async getAllCVs(organizationId, query = {}) {
     return { success: false, error: error.message };
   }
 },
-async processCV(file, job, organizationId) {
-  try {
+async processCV(file, job, organizationId, source = 'landing_page') {
+    try {
     // Validate file type
     const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     if (!allowedTypes.includes(file.mimetype)) {
@@ -367,8 +367,9 @@ async processCV(file, job, organizationId) {
       s3Path: s3Path,       // Store the full S3 path for deletion
       fileType: file.mimetype,
       submissionType: 'file',
-      status: cvResult.data.ranking.category === 'Not Relevant' ? 'rejected' : 'pending'
-    });
+      status: cvResult.data.ranking.category === 'Not Relevant' ? 'rejected' : 'pending',
+      source: source
+        });
 
     return { success: true, data: cv };
   } catch (error) {
