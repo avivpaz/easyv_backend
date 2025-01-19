@@ -1,8 +1,8 @@
-// workers/emailProcessingWorker.js
 const Queue = require('bull');
 const { google } = require('googleapis');
 const { OAuth2 } = google.auth;
-const { EmailIntegration, CV } = require('../models');
+const { EmailIntegration } = require('../models');
+const CVProcessor = require('../services/cvProcessor');  // Changed this line
 
 // Create a Bull queue
 const emailQueue = new Queue('email-processing', {
@@ -40,10 +40,15 @@ emailQueue.process(async (job) => {
       id: messageId
     });
 
+    let processedAttachments = 0;
+    let successfulProcessings = 0;
+
     // Process attachments if any
     if (email.data.payload.parts) {
       for (const part of email.data.payload.parts) {
         if (part.filename && isCVFileType(part.filename)) {
+          processedAttachments++;
+          
           // Get attachment
           const attachment = await gmail.users.messages.attachments.get({
             userId: 'me',
@@ -51,16 +56,45 @@ emailQueue.process(async (job) => {
             id: part.body.attachmentId
           });
 
-          // Process CV
-          await processCV(attachment, integration, email);
+          // Create a file-like object
+          const file = {
+            buffer: Buffer.from(attachment.data.data, 'base64'),
+            originalname: part.filename,
+            mimetype: getMimeType(part.filename)
+          };
+
+          // Extract email metadata
+          const headers = email.data.payload.headers;
+          const subject = headers.find(h => h.name === 'Subject')?.value;
+          const from = headers.find(h => h.name === 'From')?.value;
+          
+          // Call CVProcessor directly instead of emailCVProcessor
+          const result = await CVProcessor.processEmailCV(
+            file,
+            integration.organization,
+            'email_integration',
+            integrationId  // Add this parameter
+          );
+
+          if (result.success) {
+            successfulProcessings++;
+            console.log(`Successfully processed CV from email. Relevant for ${result.data.relevantJobs} jobs`);
+          } else {
+            console.error(`Failed to process CV from email:`, result.error);
+          }
           
           // Update job progress
-          await job.progress(100);
+          const progress = (processedAttachments / email.data.payload.parts.length) * 100;
+          await job.progress(progress);
         }
       }
     }
 
-    console.log(`Successfully processed message ${messageId}`);
+    console.log(`Successfully processed message ${messageId}. Processed ${processedAttachments} attachments, ${successfulProcessings} successful`);
+    return {
+      processedAttachments,
+      successfulProcessings
+    };
 
   } catch (error) {
     console.error('Email processing error:', error);
@@ -68,41 +102,29 @@ emailQueue.process(async (job) => {
   }
 });
 
+// Helper functions remain the same
 function isCVFileType(filename) {
   const validExtensions = ['.pdf', '.doc', '.docx'];
   return validExtensions.some(ext => filename.toLowerCase().endsWith(ext));
 }
 
-async function processCV(attachment, integration, email) {
-  const buffer = Buffer.from(attachment.data.data, 'base64');
-  
-  const headers = email.data.payload.headers;
-  const subject = headers.find(h => h.name === 'Subject')?.value;
-  const from = headers.find(h => h.name === 'From')?.value;
-
-  const cv = await CV.create({
-    organization: integration.organization,
-    submissionType: 'email',
-    status: 'pending',
-    visibility: 'locked',
-    rawData: buffer,
-    metadata: {
-      emailSubject: subject,
-      emailFrom: from,
-      emailDate: new Date(parseInt(email.data.internalDate))
-    }
-  });
-
-  console.log(`Created CV record ${cv._id} from email`);
+function getMimeType(filename) {
+  const ext = filename.toLowerCase().split('.').pop();
+  const mimeTypes = {
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
 }
 
-// Handle errors
+// Event handlers remain the same
 emailQueue.on('failed', (job, err) => {
   console.error(`Job ${job.id} failed:`, err);
 });
 
-emailQueue.on('completed', (job) => {
-  console.log(`Job ${job.id} completed`);
+emailQueue.on('completed', (job, result) => {
+  console.log(`Job ${job.id} completed:`, result);
 });
 
 module.exports = emailQueue;

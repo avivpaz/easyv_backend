@@ -1,3 +1,4 @@
+//src/services/emailScanner/gmailScanner.js
 const { google } = require('googleapis');
 const { OAuth2 } = google.auth;
 

@@ -1,9 +1,7 @@
-// models/integrations.js
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// models/integrations.js
-const emailIntegrationSchema = new Schema({
+const integrationSchema = new Schema({
   userId: { 
     type: Schema.Types.ObjectId, 
     ref: 'User', 
@@ -14,46 +12,86 @@ const emailIntegrationSchema = new Schema({
     ref: 'Organization', 
     required: true 
   },
+  integrationType: {
+    type: String,
+    enum: ['email', 'social', 'jobPlatform'],
+    required: true
+  },
   provider: { 
-    type: String, 
-    enum: ['gmail', 'outlook'], 
-    required: true 
+    type: String,
+    required: true
   },
-  email: { 
-    type: String, 
-    required: true 
-  },
-  refreshToken: { 
-    type: String, 
-    required: true 
-  },
-  lastSyncTime: { 
-    type: Date, 
-    default: Date.now 
-  },
+  // Common fields across all integration types
   status: { 
     type: String, 
     enum: ['active', 'error', 'disconnected'], 
     default: 'active' 
   },
+  lastSyncTime: { 
+    type: Date, 
+    default: Date.now 
+  },
   lastError: String,
+  
+  // Email specific fields
+  email: String,
+  
+  // Social specific fields
+  socialHandle: String,
+  socialProfile: String,
+  
+  // Job platform specific fields
+  apiKey: String,
+  platformEndpoint: String,
+  
+  // Generic fields for provider-specific data
+  credentials: {
+    type: Map,
+    of: Schema.Types.Mixed,
+    private: true // Ensures this field is not returned in queries by default
+  },
   providerMetadata: {
     type: Map,
-    of: String
+    of: Schema.Types.Mixed
+  },
+  settings: {
+    type: Map,
+    of: Schema.Types.Mixed
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  discriminatorKey: 'integrationType' // Enables inheritance if needed
 });
 
-// Add compound index for unique integrations per user/org
-emailIntegrationSchema.index(
-  { userId: 1, organization: 1, email: 1, provider: 1 }, 
+// Compound indexes
+integrationSchema.index(
+  { userId: 1, organization: 1, integrationType: 1, provider: 1 }, 
   { unique: true }
 );
+integrationSchema.index({ status: 1, lastSyncTime: 1 });
 
-// Add index for faster queries
-emailIntegrationSchema.index({ status: 1, lastSyncTime: 1 });
+// Create the base model
+const Integration = mongoose.model('Integration', integrationSchema);
+
+// Create discriminator models for specific types if needed
+const EmailIntegration = Integration.discriminator('email', new Schema({
+  email: { type: String, required: true },
+  refreshToken: { type: String, required: true }
+}));
+
+const SocialIntegration = Integration.discriminator('social', new Schema({
+  socialHandle: { type: String, required: true },
+  socialProfile: { type: String, required: true }
+}));
+
+const JobPlatformIntegration = Integration.discriminator('jobPlatform', new Schema({
+  apiKey: { type: String, required: true },
+  platformEndpoint: { type: String, required: true }
+}));
 
 module.exports = {
-  EmailIntegration: mongoose.model('EmailIntegration', emailIntegrationSchema)
+  Integration,
+  EmailIntegration,
+  SocialIntegration,
+  JobPlatformIntegration
 };
