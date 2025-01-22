@@ -4,7 +4,7 @@ const { EmailIntegration } = require('../models');
 const { scanGmailInbox } = require('../services/emailScanner/gmailScanner');
 
 // Run every 15 minutes
-cron.schedule('*/15 * * * *', async () => {
+cron.schedule('*/60 * * * *', async () => {
   try {
     // Get all active Gmail integrations
     const activeIntegrations = await EmailIntegration.find({

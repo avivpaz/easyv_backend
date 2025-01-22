@@ -1,8 +1,5 @@
-//src/services/emailScanner/gmailScanner.js
 const { google } = require('googleapis');
 const { OAuth2 } = google.auth;
-
-// services/emailScanner/gmailScanner.js
 const emailQueue = require('../../workers/emailProcessingWorker');
 
 async function scanGmailInbox(integration) {
@@ -14,48 +11,69 @@ async function scanGmailInbox(integration) {
     oauth2Client.setCredentials({ refresh_token: integration.refreshToken });
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-    // Default to 30 days if no lastSyncTime is set
-    const daysAgo = integration.lastSyncTime 
-      ? Math.ceil((Date.now() - integration.lastSyncTime) / (1000 * 60 * 60 * 24))
-      : 30;
     
-    console.log(`Scanning emails from last ${daysAgo} days for ${integration.email}`);
+    let newMessages = 0;
+    let pageToken = null;
+    const lastSyncTime = integration.lastSyncTime || new Date(0);
 
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      q: `has:attachment filename:(pdf OR doc OR docx) newer_than:${daysAgo}d`,
-      maxResults: 50
-    });
+    // Since it runs daily, we can safely look back 2 days to account for any delays
+    // and timezone differences
+    const daysToLookBack = 2;
+    
+    do {
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        q: `has:attachment filename:(pdf OR doc OR docx) newer_than:${daysToLookBack}d`,
+        maxResults: 100,
+        pageToken: pageToken
+      });
 
-    if (!response.data.messages) {
-      console.log(`No messages found for ${integration.email}`);
-      return {
-        success: true,
-        messagesFound: 0
-      };
-    }
+      if (!response.data.messages) {
+        console.log(`No messages found for ${integration.email}`);
+        break;
+      }
 
-    console.log(`Found ${response.data.messages.length} messages for ${integration.email}`);
-
-    // Add jobs to Bull queue
-    for (const message of response.data.messages) {
-      await emailQueue.add(
-        {
-          integrationId: integration._id,
-          messageId: message.id
-        },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 2000
-          },
-          removeOnComplete: true, // Remove successful jobs
-          removeOnFail: false     // Keep failed jobs for inspection
+      // Process this page of messages
+      for (const message of response.data.messages) {
+        const messageDetails = await gmail.users.messages.get({
+          userId: 'me',
+          id: message.id,
+          format: 'metadata',
+          metadataHeaders: ['internalDate']
+        });
+        
+        const messageDate = new Date(parseInt(messageDetails.data.internalDate));
+        
+        // Double check the message is after lastSyncTime
+        if (messageDate > lastSyncTime) {
+          await emailQueue.add(
+            {
+              integrationId: integration._id,
+              messageId: message.id
+            },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 2000
+              },
+              removeOnComplete: true,
+              removeOnFail: false
+            }
+          );
+          newMessages++;
         }
-      );
-    }
+      }
+
+      pageToken = response.data.nextPageToken;
+      
+      if (pageToken) {
+        console.log(`Fetching next page of messages for ${integration.email}`);
+      }
+
+    } while (pageToken);
+
+    console.log(`Found ${newMessages} new messages for ${integration.email}`);
 
     // Update last sync time
     await integration.updateOne({
@@ -64,7 +82,7 @@ async function scanGmailInbox(integration) {
 
     return {
       success: true,
-      messagesFound: response.data.messages.length
+      messagesFound: newMessages
     };
 
   } catch (error) {

@@ -197,18 +197,39 @@ class CVProcessor {
           parameters: {
             type: "object",
             properties: {
-              fullName: { type: "string" },
-              email: { type: "string" },
-              phone: { type: "string" },
-              summary: { type: "string" },
+              fullName: { 
+                type: "string",
+                description: "Full name in Title Case (e.g., 'John Smith')"
+              },
+              email: { 
+                type: "string",
+                description: "Email address in lowercase format (e.g., 'john.smith@example.com')"
+              },
+              phone: { 
+                type: "string",
+                description: "Phone number in international format with country code (e.g., '+1-123-456-7890' or '+44 20 7123 4567')"
+              },
+              summary: {
+                type: "string",
+                description: "2-3 sentence professional summary in proper sentence case"
+              },
               education: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
-                    degree: { type: "string" },
-                    institution: { type: "string" },
-                    year: { type: "string" }
+                    degree: {
+                      type: "string",
+                      description: "Degree in Title Case (e.g., 'Bachelor of Science in Computer Science')"
+                    },
+                    institution: {
+                      type: "string",
+                      description: "Institution name in Title Case"
+                    },
+                    year: {
+                      type: "string",
+                      description: "Year range as YYYY-YYYY or YYYY if ongoing"
+                    }
                   }
                 }
               },
@@ -217,32 +238,54 @@ class CVProcessor {
                 items: {
                   type: "object",
                   properties: {
-                    company: { type: "string" },
-                    position: { type: "string" },
-                    dates: { type: "string" },
+                    company: {
+                      type: "string",
+                      description: "Company name in Title Case"
+                    },
+                    position: {
+                      type: "string",
+                      description: "Position title in Title Case"
+                    },
+                    dates: {
+                      type: "string",
+                      description: "Date range as YYYY-YYYY or YYYY-present"
+                    },
                     responsibilities: {
                       type: "array",
-                      items: { type: "string" }
+                      items: {
+                        type: "string",
+                        description: "Responsibility in sentence case, starting with action verb"
+                      }
                     },
-                    isRelevant: { type: "boolean" }
+                    isRelevant: {
+                      type: "boolean",
+                      description: "Whether this experience is relevant to the job position"
+                    }          
                   }
                 }
               },
               skills: {
                 type: "array",
-                items: { type: "string" }
+                items: {
+                  type: "string",
+                  description: "Skills with proper capitalization (e.g., 'JavaScript', 'project management')"
+                }
               },
               languages: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
-                    name: { type: "string" },
+                    name: {
+                      type: "string",
+                      description: "Language name in Title Case"
+                    },
                     proficiency: {
                       type: "string",
                       enum: ["Native", "Fluent", "Advanced", "Intermediate", "Basic"]
                     }
-                  }
+                  },
+                  required: ["name", "proficiency"]
                 }
               },
               originalLanguage: { type: "string" },
@@ -251,10 +294,15 @@ class CVProcessor {
                 properties: {
                   category: {
                     type: "string",
-                    enum: ["Highly Relevant", "Relevant", "Not Relevant"]
+                    enum: ["Highly Relevant", "Relevant", "Not Relevant"],
+                    description: "Overall ranking of candidate fit for the position"
                   },
-                  justification: { type: "string" }
-                }
+                  justification: {
+                    type: "string", 
+                    description: "2-3 sentence explanation of the ranking based on experience, skills, and qualifications match. Use ONLY on professional qualifications without personal information like name"
+                  }
+                },
+                required: ["category", "justification"]
               }
             },
             required: ["fullName", "email", "phone", "summary", "education", "experience", "skills", "languages", "originalLanguage", "ranking"]
