@@ -1,6 +1,7 @@
-// models/index.js
 const mongoose = require('mongoose');
+const { Integration, EmailIntegration, SocialIntegration, JobPlatformIntegration } = require('./integrations');
 
+// Existing schemas remain the same
 const organizationSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String },
@@ -8,18 +9,17 @@ const organizationSchema = new mongoose.Schema({
   linkedinUrl: { type: String },
   logoUrl: { type: String },
   brandColor: { type: String },
-  customerId: { type: String },          // Paddle customer ID
+  customerId: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
-// In models/index.js, update userSchema
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  password: { type: String }, // Remove required: true since Google users won't have a password
+  password: { type: String },
   fullName: { type: String, required: true },
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
-  googleId: { type: String }, // Add this field
+  googleId: { type: String },
   authProvider: { type: String, enum: ['local', 'google'], default: 'local' }, 
   refreshToken: { type: String },  
   createdAt: { type: Date, default: Date.now }
@@ -59,6 +59,11 @@ const jobSchema = new mongoose.Schema({
     enum: ['active', 'draft', 'closed', 'deleted'], 
     default: 'active' 
   },
+  // Add reference to source integration
+  sourceIntegration: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Integration'
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -97,6 +102,17 @@ const cvSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   fileUrl: { type: String, required: false },
   submissionType: { type: String, enum: ['file', 'text'], required: true },
+  // Update source enum to be more generic
+  source: { 
+    type: String, 
+    enum: ['landing_page', 'careers_page', 'email_integration', 'social_integration', 'job_platform_integration', 'api'], 
+    default: 'landing_page' 
+  },
+  // Add reference to source integration
+  sourceIntegration: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Integration'
+  },
   rawText: { type: String },
   status: { type: String, enum: ['pending', 'reviewed', 'rejected'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },
@@ -110,6 +126,7 @@ const cvSchema = new mongoose.Schema({
     unlockedAt: { type: Date, default: Date.now }
   }]
 });
+
 const creditTransactionSchema = new mongoose.Schema({
   organization: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -123,7 +140,7 @@ const creditTransactionSchema = new mongoose.Schema({
   },
   amount: { 
     type: Number, 
-    required: true  // Positive for purchases/refunds, negative for deductions
+    required: true
   },
   balanceAfter: { 
     type: Number, 
@@ -140,9 +157,9 @@ const creditTransactionSchema = new mongoose.Schema({
     }
   },
   metadata: {
-    paypalOrderId: String,     // For PayPal purchases
-    description: String,            // Optional description
-    performedBy: {                  // User who performed the action
+    paypalOrderId: String,
+    description: String,
+    performedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     }
@@ -153,15 +170,20 @@ const creditTransactionSchema = new mongoose.Schema({
   }
 });
 
-// Add a unique index for paddleEventId
 creditTransactionSchema.index({ 'metadata.paddleEventId': 1 }, { 
   unique: true, 
-  sparse: true  // Allows null values
+  sparse: true
 });
+
 module.exports = {
   Organization: mongoose.model('Organization', organizationSchema),
   User: mongoose.model('User', userSchema),
   Job: mongoose.model('Job', jobSchema),
   CV: mongoose.model('CV', cvSchema),
-  CreditTransaction: mongoose.model('CreditTransaction', creditTransactionSchema)
+  CreditTransaction: mongoose.model('CreditTransaction', creditTransactionSchema),
+  // Export all integration models
+  Integration,
+  EmailIntegration,
+  SocialIntegration,
+  JobPlatformIntegration
 };

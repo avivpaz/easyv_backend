@@ -10,12 +10,12 @@ const organizationRoutes = require('./src/routes/organizationRoutes');
 const publicRoutes = require('./src/routes/publicRoutes');
 const billingRoutes = require('./src/routes/billingRoutes');
 const helpRoutes = require('./src/routes/helpRoutes');
+const integrationRoutes = require('./src/routes/integrationRoutes');
 
 const errorHandler = require('./src/middleware/errorHandler');
+// require('./src/jobs/emailScanJob');  // This will start the cron job
 
 const app = express();
-
-
 
 const corsOptions = {
   origin: '*',
@@ -35,6 +35,7 @@ app.use('/organizations', organizationRoutes);
 app.use('/public', publicRoutes);
 app.use('/billing', billingRoutes);
 app.use('/help', helpRoutes);
+app.use('/integrations', integrationRoutes);
 
 // Error handling
 app.use(errorHandler);
