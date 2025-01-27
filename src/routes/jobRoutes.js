@@ -21,7 +21,7 @@ router.post('/:id/cv',authMiddleware, upload.array('cvs', 10), handleCVUpload);
 router.delete('/:id', authMiddleware, deleteJob);
 router.put('/:id', authMiddleware, updateJob);  // Add this line
 router.patch('/:id/status', authMiddleware, updateJobStatus);
-router.post('/description', authMiddleware,generateJobDescription);
+router.post('/description',generateJobDescription);
 router.post('/:jobId/unlock-cvs',authMiddleware, unlockNextCVsByJob);
 router.get('/:jobId/unlock-stats',authMiddleware, getJobUnlockStats);
 router.get('/:jobId/social-share', authMiddleware, generateSocialShare);
