@@ -70,6 +70,7 @@ const uploadToS3 = async (
       : 'inline'
   };
 
+  
   try {
     const command = new PutObjectCommand(params);
     await s3Client.send(command);
