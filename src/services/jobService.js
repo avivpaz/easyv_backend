@@ -251,39 +251,39 @@ async getPublicJob(jobId) {
       // Process each CV based on unlock status
       const processedCVs = cvs.map(cv => {
         const isUnlocked = cv.visibility === 'unlocked';
+        const baseCV = {
+          _id: cv._id,
+          status: cv.status,
+          ranking: cv.ranking,
+          submissionType: cv.submissionType,
+          createdAt: cv.createdAt,
+          visibility: cv.visibility,
+          fileUrl: cv.fileUrl,
+          rawText: cv.rawText
+        };
   
         if (isUnlocked) {
           // Return full CV details if unlocked
           return {
-            _id: cv._id,
-            candidate: cv.candidate,
-            ranking: cv.ranking, // Include full ranking for unlocked CVs
-            status: cv.status,
-            fileUrl: cv.fileUrl,
-            rawText: cv.rawText,
-            submissionType: cv.submissionType,
-            createdAt: cv.createdAt,
-            visibility: 'unlocked'
+            ...baseCV,
+            candidate: cv.candidate
           };
         } else {
-          // Return limited CV details if locked
+          // Return everything except contact details for locked CVs
           return {
-            _id: cv._id,
-            status: cv.status,
-            ranking: {  // Include ranking even for locked CVs
-              category: cv.ranking.category,
-              justification: cv.ranking.justification
-            },
+            ...baseCV,
             candidate: {
-              // Only return basic candidate info
+              ...cv.candidate,
+              // Mask personal information
               fullName: maskFullName(cv.candidate.fullName),
-              experience: cv.candidate.experience?.length || 0,
-              education: cv.candidate.education?.length || 0,
-              skills: cv.candidate.skills?.length || 0
-            },
-            submissionType: cv.submissionType,
-            createdAt: cv.createdAt,
-            visibility: 'locked'
+              email: undefined,
+              phone: undefined,
+              // Keep all other candidate information
+              summary: cv.candidate.summary,
+              experience: cv.candidate.experience,
+              education: cv.candidate.education,
+              skills: cv.candidate.skills
+            }
           };
         }
       });
