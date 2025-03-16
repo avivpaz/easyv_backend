@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cvRoutes = require('./src/routes/cvRoutes');
-const jobRoutes = require('./src/routes/jobRoutes');  // Add this line
+const jobRoutes = require('./src/routes/jobRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const connectDB = require('./src/config/database');
 const organizationRoutes = require('./src/routes/organizationRoutes');
@@ -28,12 +28,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Health check endpoint for AWS
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Apply Supabase auth middleware
 app.use(supabaseAuth);
 
 // Routes
 app.use('/cvs', cvRoutes);
-app.use('/jobs', jobRoutes);  // Add this line
+app.use('/jobs', jobRoutes);
 app.use('/auth', authRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/public', publicRoutes);
@@ -43,14 +48,18 @@ app.use('/integrations', integrationRoutes);
 
 // Error handling
 app.use(errorHandler);
+
+// Root endpoint
 app.get('/', (req, res) => {
   res.status(200).send('OK');
 });
+
 // Database connection
 connectDB()
   .then(() => {
-    app.listen(process.env.PORT || 3000, () => {
-      console.log(`Server running on port ${process.env.PORT || 3000}`);
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
       console.log('Routes available:');
       console.log('- POST /users/register');
       console.log('- POST /jobs/create');
