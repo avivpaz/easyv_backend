@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
 const { generateTokens, refreshAccessToken } = require('../utils/authUtils');
+const { User } = require('../models');
 
 async function createUser(req, res, next) {
    try {
@@ -103,4 +104,93 @@ async function login(req, res, next) {
    }
 }
 
-module.exports = { login, createUser, googleCallback, googleAuth, refreshToken };
+async function registerSupabase(req, res, next) {
+  try {
+    const { email, organizationName, fullName, role, supabaseUserId } = req.body;
+    
+    if (!email || !organizationName || !fullName || !supabaseUserId) {
+      const error = new Error('Required fields are missing');
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    // First check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      const error = new Error('An account with this email already exists');
+      error.statusCode = 409; // Conflict status code
+      return next(error);
+    }
+
+    const result = await authService.createUserWithSupabase({
+      email,
+      organizationName,
+      fullName,
+      role: role || 'admin',
+      supabaseUserId
+    });
+
+    if (!result.success) {
+      const error = new Error(result.error);
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    res.status(201).json(result.data);
+  } catch (error) {
+    console.error('Supabase registration error:', error);
+    next(error);
+  }
+}
+
+async function loginSupabase(req, res, next) {
+  try {
+    const { supabaseUserId } = req.body;
+    
+    if (!supabaseUserId) {
+      const error = new Error('Supabase user ID is required');
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    const result = await authService.loginWithSupabase(supabaseUserId);
+    
+    if (!result.success) {
+      // If the user doesn't exist in our database, return a specific error
+      if (result.error === 'USER_NOT_FOUND') {
+        const error = new Error('User not found. Please register first.');
+        error.statusCode = 404;
+        error.code = 'USER_NOT_FOUND';
+        return next(error);
+      }
+      
+      // If the user exists but doesn't have an organization, return a specific error
+      if (result.error === 'ORGANIZATION_NOT_FOUND') {
+        const error = new Error('User organization not found.');
+        error.statusCode = 404;
+        error.code = 'ORGANIZATION_NOT_FOUND';
+        return next(error);
+      }
+      
+      // For other errors
+      const error = new Error(result.message || result.error);
+      error.statusCode = 401;
+      return next(error);
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('Supabase login error:', error);
+    next(error);
+  }
+}
+
+module.exports = { 
+  login, 
+  createUser, 
+  googleCallback, 
+  googleAuth, 
+  refreshToken,
+  registerSupabase,
+  loginSupabase
+};

@@ -223,6 +223,26 @@ async function generateJobDescription(req, res, next) {
   }
 }
 
+async function suggestPostingPlatforms(req, res, next) {
+  try {
+    const { jobId } = req.params;
+    const organizationId = req.user.organizationId;
+
+    const result = await jobService.suggestPostingPlatforms(jobId, organizationId);
+    
+    if (!result.success) {
+      const error = new Error(result.error);
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    res.json(result.data);
+  } catch (error) {
+    console.error('Suggest posting platforms error:', error);
+    next(error);
+  }
+}
+
 module.exports = { 
   createJob, 
   getOrganizationJobs,
@@ -231,6 +251,7 @@ module.exports = {
   deleteJob,
   generateJobDescription,
   generateSocialShare,
-  updateJob ,
-  updateJobStatus
+  updateJob,
+  updateJobStatus,
+  suggestPostingPlatforms
 };

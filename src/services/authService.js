@@ -3,13 +3,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Organization } = require('../models');
 const billingService = require('./billingService');
-const { OAuth2Client ,} = require('google-auth-library');
+const { OAuth2Client } = require('google-auth-library');
 const { generateTokens, refreshAccessToken } = require('../utils/authUtils');
+const { supabaseClient, supabaseAdmin } = require('../config/supabase');
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URL
-    );
+);
 
 const authService = {
   async login(email, password) {
@@ -143,7 +144,6 @@ const authService = {
     }
   },
 
-  
   async googleCallback(code) {
     try {
       // Create OAuth2 client
@@ -246,101 +246,309 @@ const authService = {
     }
   },
   
-async googleAuth(token) {
-  try {
-    const ticket = await googleClient.getTokenInfo(token);
-  
-    if (ticket.aud !== process.env.GOOGLE_CLIENT_ID) {
-      return { success: false, error: 'Invalid token audience' };
-    }
-
-    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!userInfoResponse.ok) {
-      throw new Error('Failed to get user info from Google');
-    }
-
-    const userData = await userInfoResponse.json();
-    const { sub: googleId, email, name } = userData;
-
-    let user = await User.findOne({ 
-      $or: [
-        { email: email },
-        { googleId: googleId }
-      ]
-    }).populate('organization');
-
-    if (user) {
-      if (!user.googleId) {
-        user.googleId = googleId;
-        user.authProvider = 'google';
-        await user.save();
+  async googleAuth(token) {
+    try {
+      const ticket = await googleClient.getTokenInfo(token);
+    
+      if (ticket.aud !== process.env.GOOGLE_CLIENT_ID) {
+        return { success: false, error: 'Invalid token audience' };
       }
-    } else {
-      const organization = await Organization.create({
-        name: `My Company`,
-        needsSetup: true
+
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      if (!userInfoResponse.ok) {
+        throw new Error('Failed to get user info from Google');
+      }
+
+      const userData = await userInfoResponse.json();
+      const { sub: googleId, email, name } = userData;
+
+      let user = await User.findOne({ 
+        $or: [
+          { email: email },
+          { googleId: googleId }
+        ]
+      }).populate('organization');
+
+      if (user) {
+        if (!user.googleId) {
+          user.googleId = googleId;
+          user.authProvider = 'google';
+          await user.save();
+        }
+      } else {
+        const organization = await Organization.create({
+          name: `My Company`,
+          needsSetup: true
+        });
+
+        await billingService.addCreditsManually(
+          organization._id,
+          50,
+          null,
+          'Initial Google signup bonus credits'
+        );
+
+        user = await User.create({
+          email,
+          fullName: name,
+          googleId,
+          authProvider: 'google',
+          organization: organization._id,
+          role: 'admin'
+        });
+
+        user = await User.findById(user._id).populate('organization');
+      }
+
+      const { credits } = await billingService.getCreditsBalance(user.organization._id);
+
+      // Generate tokens using authUtils
+      const { accessToken, refreshToken } = generateTokens(user);
+
+      // Store refresh token in user document
+      user.refreshToken = refreshToken;
+      await user.save();
+
+      return {
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName
+          },
+          organization: {
+            id: user.organization._id,
+            name: user.organization.name,
+            credits: credits,
+            customerId: user.organization.customerId || null,
+            description: user.organization.description || '',
+            website: user.organization.website || '',
+            linkedinUrl: user.organization.linkedinUrl || '',
+            logoUrl: user.organization.logoUrl || '',
+            brandColor: user.organization.brandColor || '',
+            needsSetup: !user.organization.description && !user.organization.logoUrl
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Google auth error:', error);
+      return { success: false, error: 'Failed to authenticate with Google' };
+    }
+  },
+
+  async createUserWithSupabase(userData) {
+    try {
+      const { email, organizationName, fullName, role = 'admin', supabaseUserId } = userData;
+
+      // Check if user already exists in our database
+      const existingUser = await User.findOne({ 
+        $or: [
+          { email },
+          { supabaseUserId }
+        ]
+      });
+
+      if (existingUser) {
+        // If user exists but doesn't have supabaseUserId, update it
+        if (existingUser.email === email && !existingUser.supabaseUserId) {
+          existingUser.supabaseUserId = supabaseUserId;
+          await existingUser.save();
+          
+          // Return existing user data using this.loginWithSupabase
+          return await this.loginWithSupabase(supabaseUserId);
+        }
+        
+        return { 
+          success: false, 
+          error: 'An account with this email already exists' 
+        };
+      }
+
+      // Create new organization
+      const organization = await Organization.create({ 
+        name: organizationName
+      });
+
+      // Add initial credits using billing service
       await billingService.addCreditsManually(
         organization._id,
         50,
         null,
-        'Initial Google signup bonus credits'
+        'Initial signup bonus credits'
       );
 
-      user = await User.create({
+      // Create user with Supabase ID
+      const user = await User.create({
         email,
-        fullName: name,
-        googleId,
-        authProvider: 'google',
+        supabaseUserId,
         organization: organization._id,
-        role: 'admin'
+        fullName: fullName,
+        role,
+        authProvider: 'supabase'
       });
 
-      user = await User.findById(user._id).populate('organization');
+      // Generate tokens
+      const { accessToken, refreshToken } = generateTokens({
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+        organizationId: organization._id
+      });
+
+      // Get credits balance
+      const { credits } = await billingService.getCreditsBalance(organization._id);
+
+      return {
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName || ''
+          },
+          organization: {
+            id: organization._id,
+            name: organization.name,
+            credits: credits,
+            customerId: null,
+            description: '',
+            website: '',
+            linkedinUrl: '',
+            logoUrl: '',
+            needsSetup: true
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Supabase registration error:', error);
+      return { success: false, error: error.message };
     }
+  },
 
-    const { credits } = await billingService.getCreditsBalance(user.organization._id);
+  async loginWithSupabase(supabaseUserId) {
+    try {
+      console.log('loginWithSupabase called with supabaseUserId:', supabaseUserId);
+      
+      // Find user by Supabase ID
+      const user = await User.findOne({ supabaseUserId }).populate('organization');
+      
+      console.log('User found:', user ? 'Yes' : 'No');
+      
+      // If user doesn't exist in our database, return an error that indicates
+      // we need to create a new user record
+      if (!user) {
+        console.log('User not found in database');
+        return { 
+          success: false, 
+          error: 'USER_NOT_FOUND',
+          message: 'User not found in database'
+        };
+      }
 
-    // Generate tokens using authUtils
-    const { accessToken, refreshToken } = generateTokens(user);
+      console.log('User organization:', user.organization ? 'Yes' : 'No');
+      
+      // If user exists but doesn't have an organization, create a default one
+      if (!user.organization) {
+        console.log('Creating default organization for user');
+        try {
+          // Create a default organization
+          const organization = await Organization.create({ 
+            name: 'My Organization',
+            needsSetup: true
+          });
 
-    // Store refresh token in user document
-    user.refreshToken = refreshToken;
-    await user.save();
+          console.log('Default organization created:', organization._id);
 
-    return {
-      success: true,
-      data: {
-        accessToken,
-        refreshToken,
-        user: {
-          email: user.email,
-          role: user.role,
-          fullName: user.fullName
-        },
-        organization: {
-          id: user.organization._id,
-          name: user.organization.name,
-          credits: credits,
-          customerId: user.organization.customerId || null,
-          description: user.organization.description || '',
-          website: user.organization.website || '',
-          linkedinUrl: user.organization.linkedinUrl || '',
-          logoUrl: user.organization.logoUrl || '',
-          brandColor: user.organization.brandColor || '',
-          needsSetup: !user.organization.description && !user.organization.logoUrl
+          // Add initial credits
+          await billingService.addCreditsManually(
+            organization._id,
+            50,
+            null,
+            'Initial signup bonus credits'
+          );
+
+          // Update user with organization
+          user.organization = organization._id;
+          await user.save();
+
+          console.log('User updated with organization');
+
+          // Reload user with organization
+          const updatedUser = await User.findOne({ supabaseUserId }).populate('organization');
+          
+          console.log('User reloaded with organization:', updatedUser.organization ? 'Yes' : 'No');
+          
+          // Continue with the updated user
+          return this.loginWithSupabase(supabaseUserId);
+        } catch (orgError) {
+          console.error('Failed to create default organization:', orgError);
+          return { 
+            success: false, 
+            error: 'ORGANIZATION_CREATION_FAILED',
+            message: 'Failed to create default organization'
+          };
         }
       }
-    };
-  } catch (error) {
-    console.error('Google auth error:', error);
-    return { success: false, error: 'Failed to authenticate with Google' };
+
+      // Get credits balance from billing service
+      const { credits } = await billingService.getCreditsBalance(user.organization._id);
+
+      console.log('Preparing to generate tokens with user:', {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organization._id
+      });
+
+      // Generate tokens with a plain object instead of the Mongoose document
+      const tokenData = {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        organization: {
+          _id: user.organization._id
+        }
+      };
+
+      const { accessToken, refreshToken } = generateTokens(tokenData);
+
+      return {
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            email: user.email,
+            role: user.role,
+            fullName: user.fullName || ''
+          },
+          organization: {
+            id: user.organization._id,
+            name: user.organization.name,
+            credits: credits,
+            customerId: user.organization.customerId || null,
+            description: user.organization.description || '',
+            website: user.organization.website || '',
+            linkedinUrl: user.organization.linkedinUrl || '',
+            logoUrl: user.organization.logoUrl || '',
+            brandColor: user.organization.brandColor || '',
+            needsSetup: !user.organization.description && !user.organization.logoUrl
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Supabase login error:', error);
+      return { success: false, error: error.message };
+    }
   }
-}
 };
 
 module.exports = authService;

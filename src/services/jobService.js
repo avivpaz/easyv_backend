@@ -503,6 +503,168 @@ Please generate:
         error: 'Failed to generate job details: ' + error.message
       };
     }
+  },
+
+  async suggestPostingPlatforms(jobId, organizationId) {
+    try {
+      // Get the job details
+      const job = await Job.findOne({ 
+        _id: jobId,
+        organization: organizationId,
+        status: { $ne: 'deleted' }
+      })
+      .select('title description location workType employmentType requiredSkills');
+  
+      if (!job) {
+        return { success: false, error: 'Job not found' };
+      }
+  
+      const jobContext = `
+        Job Title: ${job.title}
+        Location: ${job.location}
+        Work Type: ${job.workType}
+        Employment Type: ${job.employmentType}
+        Key Skills: ${job.requiredSkills.join(', ')}
+        Description: ${job.description}
+      `;
+  
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ 
+          role: "user", 
+          content: `Based on the following job details, suggest the best platforms and groups to post this job listing to maximize relevant applications.
+          
+          Job Details:
+          ${jobContext}
+          
+          Please provide:
+          1. Top 5 job platforms (like LinkedIn, Indeed, etc.) that would be most effective for this specific role and location
+          2. Top 3 specialized job boards relevant to this industry/role
+          3. Top 5 LinkedIn groups where this job could be shared
+          4. Top 5 Facebook groups where this job could be shared
+          5. Top 5 Reddit communities where this job could be shared
+          6. Any other platforms or communities specific to this job's location, industry, or required skills
+          
+          For each platform or group, provide:
+          - Name
+          - Brief explanation of why it's a good fit for this job
+          - Estimated audience size or reach if available
+          - Any specific posting tips for this platform/group
+          - Direct URL to the platform, group, or search page for the group (provide the most specific and accurate URL possible)`
+        }],
+        functions: [{
+          name: "suggestPostingPlatforms",
+          parameters: {
+            type: "object",
+            properties: {
+              generalJobPlatforms: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              specializedJobBoards: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              linkedinGroups: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              facebookGroups: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              redditCommunities: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              otherPlatforms: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    reason: { type: "string" },
+                    audienceSize: { type: "string" },
+                    postingTips: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              }
+            },
+            required: ["generalJobPlatforms", "specializedJobBoards", "linkedinGroups", "facebookGroups", "redditCommunities"]
+          }
+        }],
+        function_call: { name: "suggestPostingPlatforms" }
+      });
+  
+      const suggestions = JSON.parse(
+        response.choices[0].message.function_call.arguments
+      );
+  
+      return {
+        success: true,
+        data: {
+          job: {
+            title: job.title,
+            location: job.location,
+            workType: job.workType,
+            employmentType: job.employmentType
+          },
+          suggestions
+        }
+      };
+    } catch (error) {
+      console.error('Generate platform suggestions error:', error);
+      return { 
+        success: false, 
+        error: 'Failed to generate platform suggestions: ' + error.message 
+      };
+    }
   }
 };
 

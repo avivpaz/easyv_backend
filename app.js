@@ -11,6 +11,7 @@ const publicRoutes = require('./src/routes/publicRoutes');
 const billingRoutes = require('./src/routes/billingRoutes');
 const helpRoutes = require('./src/routes/helpRoutes');
 const integrationRoutes = require('./src/routes/integrationRoutes');
+const supabaseAuth = require('./src/middleware/supabaseAuth');
 
 const errorHandler = require('./src/middleware/errorHandler');
 // require('./src/jobs/emailScanJob');  // This will start the cron job
@@ -20,12 +21,15 @@ const app = express();
 const corsOptions = {
   origin: '*',
   methods: ['GET', 'POST', 'PUT','PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Supabase-Auth']
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply Supabase auth middleware
+app.use(supabaseAuth);
 
 // Routes
 app.use('/cvs', cvRoutes);

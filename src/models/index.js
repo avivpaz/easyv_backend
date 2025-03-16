@@ -20,7 +20,8 @@ const userSchema = new mongoose.Schema({
   organization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   googleId: { type: String },
-  authProvider: { type: String, enum: ['local', 'google'], default: 'local' }, 
+  supabaseUserId: { type: String },
+  authProvider: { type: String, enum: ['local', 'google', 'supabase'], default: 'local' }, 
   refreshToken: { type: String },  
   createdAt: { type: Date, default: Date.now }
 });
