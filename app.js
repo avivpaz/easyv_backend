@@ -13,6 +13,7 @@ const helpRoutes = require('./src/routes/helpRoutes');
 const integrationRoutes = require('./src/routes/integrationRoutes');
 const supabaseAuth = require('./src/middleware/supabaseAuth');
 const errorHandler = require('./src/middleware/errorHandler');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -29,12 +30,33 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Health check endpoint for AWS
-app.get('/health', (req, res) => {
-  res.status(200).send({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const memoryUsage = process.memoryUsage();
+    const healthStatus = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: {
+        heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
+        heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+        rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB'
+      },
+      environment: process.env.NODE_ENV
+    };
+    
+    // Check database connection
+    const dbStatus = mongoose.connection.readyState;
+    healthStatus.database = dbStatus === 1 ? 'connected' : 'disconnected';
+    
+    res.status(200).json(healthStatus);
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // Apply Supabase auth middleware
