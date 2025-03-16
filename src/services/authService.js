@@ -437,22 +437,36 @@ const authService = {
     try {
       console.log('loginWithSupabase called with supabaseUserId:', supabaseUserId);
       
-      // Find user by Supabase ID
-      const user = await User.findOne({ supabaseUserId }).populate('organization');
+      // First try to find by supabaseUserId
+      let user = await User.findOne({ supabaseUserId }).populate('organization');
       
-      console.log('User found:', user ? 'Yes' : 'No');
-      
-      // If user doesn't exist in our database, return an error that indicates
-      // we need to create a new user record
+      // If not found by supabaseUserId, try to get the user's email from Supabase
       if (!user) {
-        console.log('User not found in database');
-        return { 
-          success: false, 
-          error: 'USER_NOT_FOUND',
-          message: 'User not found in database'
-        };
-      }
+        const { data: userData, error: userError } = await supabaseClient.auth.admin.getUserById(supabaseUserId);
+        if (userError || !userData) {
+          return { 
+            success: false, 
+            error: 'USER_NOT_FOUND',
+            message: 'User not found in Supabase'
+          };
+        }
 
+        // Try to find user by email
+        user = await User.findOne({ email: userData.email }).populate('organization');
+        
+        // If found by email, update their supabaseUserId
+        if (user && !user.supabaseUserId) {
+          user.supabaseUserId = supabaseUserId;
+          await user.save();
+        } else if (!user) {
+          return { 
+            success: false, 
+            error: 'USER_NOT_FOUND',
+            message: 'User not found in database'
+          };
+        }
+      }
+      
       console.log('User organization:', user.organization ? 'Yes' : 'No');
       
       // If user exists but doesn't have an organization, create a default one
@@ -500,13 +514,6 @@ const authService = {
 
       // Get credits balance from billing service
       const { credits } = await billingService.getCreditsBalance(user.organization._id);
-
-      console.log('Preparing to generate tokens with user:', {
-        _id: user._id,
-        email: user.email,
-        role: user.role,
-        organizationId: user.organization._id
-      });
 
       // Generate tokens with a plain object instead of the Mongoose document
       const tokenData = {
