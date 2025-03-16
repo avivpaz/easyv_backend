@@ -117,6 +117,18 @@ async function registerSupabase(req, res, next) {
     // First check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      // If user exists but doesn't have supabaseUserId, update it
+      if (!existingUser.supabaseUserId) {
+        existingUser.supabaseUserId = supabaseUserId;
+        await existingUser.save();
+        
+        // Now try to login with the updated user
+        const loginResult = await authService.loginWithSupabase(supabaseUserId);
+        if (loginResult.success) {
+          return res.json(loginResult.data);
+        }
+      }
+      
       const error = new Error('An account with this email already exists');
       error.statusCode = 409; // Conflict status code
       return next(error);
